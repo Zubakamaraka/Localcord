@@ -74,6 +74,11 @@
   .meta { margin-top: 14px; font-size: 14px; color: var(--muted); }
   .meta a { color: var(--muted); }
 
+.smartscreen { margin-top: 16px; display: flex; gap: 12px; align-items: flex-start; max-width: 540px;
+    background: rgba(43,45,49,.8); border: 1px solid var(--line); border-left: 4px solid #f0b232; border-radius: 10px; padding: 12px 14px; font-size: 14.5px; color: #c4c7cd; }
+  .smartscreen b { color: var(--strong); }
+  .smartscreen .k { display: inline-block; padding: 0 6px; border-radius: 4px; background: #3a3c42; color: var(--strong); white-space: nowrap; }
+  .smartscreen svg { width: 22px; height: 22px; flex-shrink: 0; color: #f0b232; margin-top: 1px; }
   section { padding: 56px 0; border-top: 1px solid var(--line); }
   section h2 { font-size: 30px; color: var(--strong); margin-bottom: 26px; letter-spacing: -.01em; }
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: s; }
@@ -141,6 +146,10 @@
           <span class="t"><b>Скачать для Android</b><small id="apk-meta">Android 7 и новее · APK</small></span>
         </a>
       </div>
+      <div class="smartscreen" id="ss-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div>При первом запуске Windows может показать синее окно <b>«Система Windows защитила ваш компьютер»</b> — так бывает со всеми программами без платной подписи. Нажмите <span class="k">Подробнее</span> → <span class="k">Выполнить в любом случае</span>. Обновления потом ставятся без этого окна.</div>
+      </div>
       <p class="meta" id="meta">Бесплатно · без рекламы и регистрации · <a href="https://github.com/Zubakamaraka/Localcord/releases">все версии</a></p>
     </div>
     <div class="shot"><img src="img/stream.png" alt="Окно LocalCord: голосовой канал и трансляция экрана в 1080p" width="1280" height="800"></div>
@@ -203,6 +212,7 @@
     const w = document.getElementById('btn-win'), a = document.getElementById('btn-apk');
     w.classList.remove('primary'); a.classList.add('primary');
     a.parentNode.insertBefore(a, w);
+    document.getElementById('ss-note').style.display = 'none';
   }
   // Номер версии и размер — с GitHub (если не получится, кнопки и так ведут на последнюю версию)
   const mb = n => (n / 1048576).toFixed(n > 10485760 ? 0 : 1) + ' МБ';
