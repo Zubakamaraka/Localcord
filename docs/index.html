@@ -79,6 +79,11 @@
   .smartscreen b { color: var(--strong); }
   .smartscreen .k { display: inline-block; padding: 0 6px; border-radius: 4px; background: #3a3c42; color: var(--strong); white-space: nowrap; }
   .smartscreen svg { width: 22px; height: 22px; flex-shrink: 0; color: #f0b232; margin-top: 1px; }
+  .smartscreen a { color: #c9c2ff; }
+  details a { color: #a99fff; }
+  .vt-shot { display: block; margin-top: 12px; }
+  .vt-shot img { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--line); }
+  .hash { font-family: ui-monospace, Consolas, monospace; font-size: 13px; word-break: break-all; color: var(--strong); background: #232428; padding: 1px 6px; border-radius: 4px; }
   section { padding: 56px 0; border-top: 1px solid var(--line); }
   section h2 { font-size: 30px; color: var(--strong); margin-bottom: 26px; letter-spacing: -.01em; }
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: s; }
@@ -148,7 +153,7 @@
       </div>
       <div class="smartscreen" id="ss-note">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4M12 16h.01"/></svg>
-        <div>При первом запуске Windows может показать синее окно <b>«Система Windows защитила ваш компьютер»</b> — так бывает со всеми программами без платной подписи. Нажмите <span class="k">Подробнее</span> → <span class="k">Выполнить в любом случае</span>. Обновления потом ставятся без этого окна.</div>
+        <div>При первом запуске Windows может показать синее окно <b>«Система Windows защитила ваш компьютер»</b> — так бывает со всеми программами без платной подписи. Нажмите <span class="k">Подробнее</span> → <span class="k">Выполнить в любом случае</span>. Обновления потом ставятся без этого окна.<br>Антивирус ругается? <a href="#antivirus">Почему это ложная тревога</a></div>
       </div>
       <p class="meta" id="meta">Бесплатно · без рекламы и регистрации · <a href="https://github.com/Zubakamaraka/Localcord/releases">все версии</a></p>
     </div>
@@ -189,6 +194,12 @@
     <h2>Вопросы</h2>
     <details open><summary>Windows пишет «Система Windows защитила ваш компьютер»</summary>
       <p>Установщик не подписан платным сертификатом, поэтому SmartScreen его не знает. Нажмите «Подробнее» → «Выполнить в любом случае».</p></details>
+    <details id="antivirus"><summary>Антивирус ругается на установщик</summary>
+      <p>Некоторые антивирусы (например PRO32 / K7) настороженно относятся к любой новой программе без платной цифровой подписи и пишут что-то вроде «Подозрительная программа». Это не найденный вирус, а значит лишь «этот файл я ещё не встречал».</p>
+      <p>Установщик проверен на <a href="https://www.virustotal.com">VirusTotal</a> — это 68 антивирусов сразу. Версия 2.1.2: <b>0 из 68</b>, угроз не найдено (<a href="https://www.virustotal.com/gui/file/763cb1b3809ad1d868a4a6a3f9f736de36144c0a875d31c5002810b98736c2e5" target="_blank" rel="noopener">отчёт</a>):</p>
+      <a class="vt-shot" href="img/virustotal-2.1.2.png" target="_blank"><img src="img/virustotal-2.1.2.png" alt="Отчёт VirusTotal: 0 из 68 антивирусов, угроз не найдено" width="1200" height="526" loading="lazy"></a>
+      <p id="vt-latest">Код программы открыт на <a href="https://github.com/Zubakamaraka/Localcord">GitHub</a>, а установщики собираются прямо оттуда автоматически.</p>
+      <p>Если антивирус всё же убрал файл — восстановите его из карантина и добавьте в исключения. Скачивайте LocalCord только с этой страницы или с GitHub.</p></details>
     <details><summary>Как друзьям из другого города подключиться?</summary>
       <p>Всем, включая хоста, нужно быть в одной виртуальной сети — например <a href="https://www.radmin-vpn.com/ru/">Radmin VPN</a>. Хосту стоит один раз нажать «Разрешить» в окне «Пригласить друзей», чтобы брандмауэр Windows пропускал друзей.</p></details>
     <details><summary>Нужен ли Radmin на телефоне?</summary>
@@ -214,6 +225,9 @@
     a.parentNode.insertBefore(a, w);
     document.getElementById('ss-note').style.display = 'none';
   }
+  // Ссылка #antivirus сразу раскрывает нужный вопрос
+  const openHash = () => { const d = document.getElementById(location.hash.slice(1)); if (d && d.tagName === 'DETAILS') d.open = true; };
+  addEventListener('hashchange', openHash); openHash();
   // Номер версии и размер — с GitHub (если не получится, кнопки и так ведут на последнюю версию)
   const mb = n => (n / 1048576).toFixed(n > 10485760 ? 0 : 1) + ' МБ';
   fetch('https://api.github.com/repos/Zubakamaraka/Localcord/releases/latest')
@@ -224,6 +238,8 @@
       const apk = rel.assets.find(x => /^LocalCord-\d.*\.apk$/.test(x.name));
       if (exe) { document.getElementById('btn-win').href = exe.browser_download_url; document.getElementById('win-meta').textContent = `Версия ${v} · ${mb(exe.size)} · Windows 10/11`; }
       if (apk) { document.getElementById('btn-apk').href = apk.browser_download_url; document.getElementById('apk-meta').textContent = `Версия ${v} · ${mb(apk.size)} · Android 7+`; }
+      const sha = exe && /^sha256:[0-9a-f]{64}$/.test(exe.digest || '') ? exe.digest.slice(7) : null;
+      if (sha) document.getElementById('vt-latest').insertAdjacentHTML('beforeend', ` Контрольная сумма SHA-256 версии ${v.replace(/[^\w.-]/g, '')}: <span class="hash">${sha}</span> — <a href="https://www.virustotal.com/gui/file/${sha}" target="_blank" rel="noopener">проверить на VirusTotal</a>.`);
       const d = new Date(rel.published_at);
       document.getElementById('meta').insertAdjacentHTML('afterbegin', `Обновлено ${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })} · `);
     })
