@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LocalCord</string>
+    <string name="title_activity_main">LocalCord</string>
+    <string name="package_name">com.localcord.app</string>
+    <string name="custom_url_scheme">com.localcord.app</string>
+</resources>

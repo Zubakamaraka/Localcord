@@ -1,0 +1,13 @@
+{
+  "appId": "com.localcord.app",
+  "appName": "LocalCord",
+  "webDir": "src/renderer",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "adjustMarginsForEdgeToEdge": "force"
+  }
+}

@@ -1,0 +1,115 @@
+# Сборка релиза: установщик для Windows + APK для Android → страница Releases.
+# Запуск: вкладка Actions → «Сборка релиза» → Run workflow (или push тега вида v2.1.0).
+name: Сборка релиза
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Автотесты сервера
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  windows:
+    name: Установщик для Windows
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --win nsis --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/LocalCord-Setup-*.exe
+          if-no-files-found: error
+
+  android:
+    name: Приложение для Android
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Ключ подписи из секретов
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/localcord.jks"
+            echo "LC_KEYSTORE=$RUNNER_TEMP/localcord.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Секрет ANDROID_KEYSTORE_BASE64 не задан — APK подписан временным ключом, обновлять его поверх старого не получится."
+          fi
+      - name: Сборка APK
+        env:
+          LC_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          LC_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          LC_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export LC_VERSION=$(node -p "require('./package.json').version")
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk "../out/LocalCord-$LC_VERSION.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*.apk
+          if-no-files-found: error
+
+  release:
+    name: Публикация
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.version }}
+          name: LocalCord ${{ steps.v.outputs.version }}
+          files: files/*
+          body: |
+            ### Скачать
+            - **Windows 10/11** — `LocalCord-Setup-${{ steps.v.outputs.version }}.exe`: запустите, установка займёт несколько секунд.
+            - **Android 7+** — `LocalCord-${{ steps.v.outputs.version }}.apk`: откройте на телефоне и разрешите установку из этого источника.
+
+            Сервер создаётся только на компьютере. С телефона подключайтесь к нему по Wi-Fi той же сети или через VPN-сеть, в которой есть и хост.
+            Обновить Windows-версию у друзей можно без интернета — её раздаёт хост.

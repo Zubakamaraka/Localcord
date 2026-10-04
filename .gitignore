@@ -1,0 +1,11 @@
+node_modules/
+dist/
+server-data/
+test/shots/
+*.log
+.DS_Store
+Thumbs.db
+Старое/
+_секреты*/
+*.jks
+*.keystore

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: mediastream: http: https:; connect-src 'self' http: https: ws: wss:; font-src 'self' data:; object-src 'none'; base-uri 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1e1f22">
+<title>LocalCord</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header id="titlebar">
+  <div class="tb-logo" id="tb-logo"></div>
+  <div class="tb-center" id="tb-center"></div>
+  <div class="win-ctrls" id="win-ctrls">
+    <button class="win-btn" id="win-min" title="Свернуть"></button>
+    <button class="win-btn" id="win-max" title="Развернуть"></button>
+    <button class="win-btn close" id="win-close" title="Закрыть"></button>
+  </div>
+</header>
+
+<div id="root">
+  <!-- Экраны приветствия, подключения, создания сервера -->
+  <section id="screen" class="screen hidden"></section>
+
+  <!-- Основной интерфейс -->
+  <div id="app" class="hidden">
+    <nav id="rail"></nav>
+
+    <aside id="sidebar">
+      <div id="server-header"><span class="name" id="server-title">LocalCord</span><span id="server-chev"></span></div>
+      <div id="channel-list" class="thin-scroll"></div>
+      <div id="voice-panel" class="hidden"></div>
+      <div id="user-panel"></div>
+    </aside>
+
+    <main id="main">
+      <div id="main-header">
+        <button class="icon-btn" id="nav-toggle" title="Каналы"></button>
+        <span class="h-icon" id="h-icon"></span>
+        <span class="h-name" id="h-name"></span>
+        <span class="h-topic" id="h-topic"></span>
+        <div class="h-actions" id="h-actions"></div>
+      </div>
+      <div id="banners"></div>
+
+      <div id="chat-view" class="hidden">
+        <div id="messages-scroller"><div id="messages"></div></div>
+        <div id="composer">
+          <div id="pending-files" class="pending-files hidden"></div>
+          <div class="input-box">
+            <button class="icon-btn" id="attach-btn" title="Прикрепить файл"></button>
+            <textarea id="message-input" rows="1" placeholder="Написать сообщение"></textarea>
+            <button class="icon-btn" id="send-btn" title="Отправить (Enter)"></button>
+          </div>
+          <input type="file" id="file-input" multiple hidden>
+        </div>
+        <div id="typing"></div>
+        <div id="drop-overlay" class="hidden"></div>
+      </div>
+
+      <div id="voice-view" class="hidden">
+        <div id="voice-body">
+          <div id="stage" class="hidden"></div>
+          <div id="voice-grid"></div>
+        </div>
+        <div id="voice-bar"></div>
+        <div id="voice-join-cta" class="hidden"></div>
+      </div>
+    </main>
+
+    <aside id="members" class="thin-scroll"></aside>
+  </div>
+</div>
+
+<div id="viewer-home" class="hidden"></div>
+<div id="mini-player" class="hidden"><div class="mp-drag" id="mp-drag"></div></div>
+<div id="drawer-backdrop"></div>
+<div id="ctx-menu" class="hidden"></div>
+<div id="toasts"></div>
+
+<script src="vendor/socket.io.min.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/util.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/platform-android.js"></script>
+<script src="js/state.js"></script>
+<script src="js/onboarding.js"></script>
+<script src="js/net.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

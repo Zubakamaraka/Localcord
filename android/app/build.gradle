@@ -1,0 +1,73 @@
+apply plugin: 'com.android.application'
+
+// Версия приложения: LC_VERSION задаёт сборка на GitHub (из package.json)
+def lcVersion = System.getenv("LC_VERSION") ?: "2.1.0"
+def lcParts = lcVersion.tokenize('.').collect { (it.replaceAll(/[^0-9].*$/, '') ?: '0') as int }
+def lcVersionCode = lcParts[0] * 10000 + lcParts[1] * 100 + lcParts[2]
+
+android {
+    namespace = "com.localcord.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.localcord.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // версия берётся из package.json (её подставляет сборка), иначе — значение ниже
+        versionName lcVersion
+        versionCode lcVersionCode
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            // ключ подписи передаётся через переменные окружения (секреты GitHub), в репозиторий он не попадает
+            if (System.getenv("LC_KEYSTORE")) {
+                storeFile file(System.getenv("LC_KEYSTORE"))
+                storePassword System.getenv("LC_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("LC_KEY_ALIAS")
+                keyPassword System.getenv("LC_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig System.getenv("LC_KEYSTORE") ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
