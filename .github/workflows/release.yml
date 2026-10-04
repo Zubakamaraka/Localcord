@@ -17,8 +17,8 @@ jobs:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -30,8 +30,8 @@ jobs:
     needs: test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -50,12 +50,12 @@ jobs:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -94,19 +94,25 @@ jobs:
     needs: [windows, android]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: v
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: files
           merge-multiple: true
+      - name: Копии без номера версии (постоянные ссылки для страницы загрузки)
+        run: |
+          cp files/LocalCord-Setup-*.exe files/LocalCord-Setup.exe
+          cp files/LocalCord-*.apk files/LocalCord.apk
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.v.outputs.version }}
           name: LocalCord ${{ steps.v.outputs.version }}
           files: files/*
           body: |
+            **Страница загрузки:** https://zubakamaraka.github.io/Localcord/
+
             ### Скачать
             - **Windows 10/11** — `LocalCord-Setup-${{ steps.v.outputs.version }}.exe`: запустите, установка займёт несколько секунд.
             - **Android 7+** — `LocalCord-${{ steps.v.outputs.version }}.apk`: откройте на телефоне и разрешите установку из этого источника.
