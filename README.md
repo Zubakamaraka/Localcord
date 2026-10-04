@@ -8,12 +8,14 @@
 ![Без внешних серверов](https://img.shields.io/badge/серверы-только%20свои-6d5dfc?style=flat-square&labelColor=1e1f22)
 ![Radmin VPN](https://img.shields.io/badge/Radmin%20VPN-поддерживается-23a55a?style=flat-square&labelColor=1e1f22)
 ![Electron](https://img.shields.io/badge/Electron-44-6d5dfc?style=flat-square&labelColor=1e1f22)
-![Лицензия MIT](https://img.shields.io/badge/license-MIT-6d5dfc?style=flat-square&labelColor=1e1f22)
+![Лицензия PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-6d5dfc?style=flat-square&labelColor=1e1f22)
 
 <a href="https://github.com/Zubakamaraka/Localcord/releases/latest"><img src="https://img.shields.io/badge/⬇%20Windows-6D5DFC?style=for-the-badge" alt="Скачать для Windows" height="46"></a>
 <a href="https://github.com/Zubakamaraka/Localcord/releases/latest"><img src="https://img.shields.io/badge/⬇%20Android-3FAE6A?style=for-the-badge" alt="Скачать для Android" height="46"></a>
 
 Один установщик для всех: скачали, открыли — и через минуту уже разговариваете. С телефона — тоже.
+
+**Страница загрузки для друзей:** https://zubakamaraka.github.io/Localcord/
 
 ![LocalCord](docs/img/og-preview.png)
 
@@ -293,6 +295,16 @@ APK подписывается постоянным ключом из секре
 
 ## Лицензия
 
-Код распространяется по лицензии MIT — им можно свободно пользоваться, изменять и
-распространять при условии сохранения указания авторства. Полный текст — в файле
-[`LICENSE`](LICENSE).
+LocalCord распространяется по лицензии **[PolyForm Noncommercial 1.0.0](LICENSE)**.
+
+Простыми словами (юридическую силу имеет только полный текст в файле [`LICENSE`](LICENSE)):
+
+- ✅ пользоваться бесплатно — дома, с друзьями, в учёбе, в некоммерческих организациях;
+- ✅ читать код, изучать, менять под себя и делиться изменениями — сохраняя лицензию и строку `Required Notice`;
+- ❌ продавать программу или её переделки, встраивать в платные продукты и сервисы, использовать в коммерческих целях.
+
+Нужно коммерческое использование — напишите автору через [GitHub](https://github.com/Zubakamaraka).
+
+Версии до 2.1.0 включительно выходили под лицензией MIT; новая лицензия действует с версии 2.1.1.
+
+Сторонние библиотеки (Electron, Socket.IO, Capacitor) распространяются под своими лицензиями (MIT).

@@ -1,10 +1,10 @@
 {
   "name": "localcord",
   "productName": "LocalCord",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Голос, чат и демонстрация экрана для локальной сети и Radmin VPN — Windows и Android",
-  "author": "LocalCord",
-  "license": "MIT",
+  "author": "Zubakamaraka",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
@@ -33,7 +33,7 @@
   "build": {
     "appId": "com.localcord.app",
     "productName": "LocalCord",
-    "copyright": "LocalCord",
+    "copyright": "© 2026 Zubakamaraka",
     "directories": {
       "output": "dist",
       "buildResources": "build"

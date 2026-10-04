@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalCord — голос, чат и трансляции для своей сети</title>
+<meta name="description" content="Как Discord, только сервер — компьютер друга. Голос, чат, файлы и демонстрация экрана по локальной сети и Radmin VPN. Windows и Android, бесплатно.">
+<meta name="theme-color" content="#1e1f22">
+<link rel="icon" href="img/icon.png">
+<link rel="canonical" href="https://zubakamaraka.github.io/Localcord/">
+
+<!-- превью ссылки в Telegram, VK, Discord, WhatsApp -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LocalCord">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:title" content="LocalCord — голос, чат и трансляции для своей сети">
+<meta property="og:description" content="Как Discord, только сервер — компьютер друга. Windows и Android, бесплатно и без внешних серверов.">
+<meta property="og:url" content="https://zubakamaraka.github.io/Localcord/">
+<meta property="og:image" content="https://zubakamaraka.github.io/Localcord/img/og-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="LocalCord: окно программы с трансляцией экрана">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://zubakamaraka.github.io/Localcord/img/og-preview.png">
+
+<style>
+  :root {
+    --bg: #1e1f22; --bg2: #2b2d31; --bg3: #313338; --line: rgba(255,255,255,.08);
+    --text: #dbdee1; --strong: #f2f3f5; --muted: #949ba4;
+    --accent: #6d5dfc; --accent2: #ff6aa8; --green: #3fae6a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif;
+    color: var(--text); line-height: 1.55;
+    background:
+      radial-gradient(900px 520px at 0% -10%, rgba(109,93,252,.42), transparent 60%),
+      radial-gradient(800px 480px at 105% 35%, rgba(255,106,168,.22), transparent 60%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  a { color: #8fd3ff; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  header.top { display: flex; align-items: center; gap: 12px; padding: 22px 0; }
+  header.top img { width: 36px; height: 36px; }
+  header.top b { font-size: 19px; color: var(--strong); }
+  header.top nav { margin-left: auto; display: flex; gap: 18px; font-size: 15px; }
+  header.top nav a { color: var(--muted); text-decoration: none; }
+  header.top nav a:hover { color: var(--strong); }
+
+  .hero { display: grid; grid-template-columns: 1fr 1.15fr; gap: 48px; align-items: center; padding: 36px 0 64px; }
+  .hero h1 { font-size: clamp(36px, 5vw, 58px); line-height: 1.05; color: var(--strong); letter-spacing: -.02em; }
+  .hero h1 span { background: linear-gradient(90deg, #a99fff, var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.lead { font-size: 19px; color: #c4c7cd; margin: 18px 0 28px; max-width: 520px; }
+  .shot { border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.55); border: 1px solid var(--line); }
+  .shot img { display: block; width: 100%; height: auto; }
+
+  .dl { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 14px 22px; border-radius: 12px; text-decoration: none;
+    background: var(--bg3); color: var(--strong); border: 1px solid var(--line);
+    transition: transform .12s, background .15s, box-shadow .15s;
+  }
+  .btn:hover { transform: translateY(-2px); background: #3a3c42; }
+  .btn.primary { background: var(--accent); border-color: transparent; box-shadow: 0 10px 30px rgba(109,93,252,.4); }
+  .btn.primary:hover { background: #5b4be6; }
+  .btn.android.primary { background: var(--green); box-shadow: 0 10px 30px rgba(63,174,106,.35); }
+  .btn svg { width: 26px; height: 26px; flex-shrink: 0; }
+  .btn .t b { display: block; font-size: 17px; }
+  .btn .t small { display: block; font-size: 13px; opacity: .8; }
+  .meta { margin-top: 14px; font-size: 14px; color: var(--muted); }
+  .meta a { color: var(--muted); }
+
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  section h2 { font-size: 30px; color: var(--strong); margin-bottom: 26px; letter-spacing: -.01em; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: s; }
+  .card { background: rgba(43,45,49,.75); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+  .steps .card::before {
+    counter-increment: s; content: counter(s);
+    display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
+    background: rgba(109,93,252,.2); color: #b6adff; font-weight: 700; margin-bottom: 12px;
+  }
+  .card h3 { font-size: 18px; color: var(--strong); margin-bottom: 6px; }
+  .card p { color: #b5bac1; font-size: 15.5px; }
+
+  .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+  .features .card { display: flex; gap: 14px; align-items: flex-start; padding: 18px; }
+  .features .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: rgba(109,93,252,.18); color: #b6adff; flex-shrink: 0; }
+  .features .ic svg { width: 22px; height: 22px; }
+  .features b { display: block; color: var(--strong); margin-bottom: 2px; }
+  .features span { font-size: 14.5px; color: #b5bac1; }
+
+  .gallery { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
+  .gallery figure { margin: 0; }
+  .gallery img { width: 100%; border-radius: 12px; border: 1px solid var(--line); display: block; }
+  .gallery figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+
+  details { background: rgba(43,45,49,.75); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin-bottom: 10px; }
+  summary { cursor: pointer; font-weight: 600; color: var(--strong); font-size: 16.5px; }
+  details p, details ul { margin-top: 10px; color: #b5bac1; }
+  details ul { padding-left: 20px; }
+
+  footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 24px; }
+  footer a { color: var(--muted); }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; gap: 32px; padding-top: 12px; }
+    .steps, .gallery { grid-template-columns: 1fr; }
+    header.top nav { display: none; }
+    .btn { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img src="img/icon.png" alt="">
+    <b>LocalCord</b>
+    <nav>
+      <a href="#start">Как начать</a>
+      <a href="#features">Возможности</a>
+      <a href="#faq">Вопросы</a>
+      <a href="https://github.com/Zubakamaraka/Localcord">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>Голос и чат<br><span>для своих</span></h1>
+      <p class="lead">Голос, чат, файлы и демонстрация экрана до 4K. Сервер — компьютер одного из друзей, а не чужой дата-центр: работает в локальной сети и через Radmin VPN, без блокировок и аккаунтов.</p>
+      <div class="dl" id="dl">
+        <a class="btn primary win" id="btn-win" href="https://github.com/Zubakamaraka/Localcord/releases/latest/download/LocalCord-Setup.exe">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.4 4.5v7H3zM11.3 4.4 21 3v8.5h-9.7zM3 12.5h7.4v7L3 18.5zM11.3 12.5H21V21l-9.7-1.4z"/></svg>
+          <span class="t"><b>Скачать для Windows</b><small id="win-meta">Windows 10 и 11 · установщик</small></span>
+        </a>
+        <a class="btn android" id="btn-apk" href="https://github.com/Zubakamaraka/Localcord/releases/latest/download/LocalCord.apk">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.48 19.44 6.3a.38.38 0 0 0-.66-.38l-1.86 3.22a11.5 11.5 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
+          <span class="t"><b>Скачать для Android</b><small id="apk-meta">Android 7 и новее · APK</small></span>
+        </a>
+      </div>
+      <p class="meta" id="meta">Бесплатно · без рекламы и регистрации · <a href="https://github.com/Zubakamaraka/Localcord/releases">все версии</a></p>
+    </div>
+    <div class="shot"><img src="img/stream.png" alt="Окно LocalCord: голосовой канал и трансляция экрана в 1080p" width="1280" height="800"></div>
+  </div>
+
+  <section id="start">
+    <h2>Как начать за пару минут</h2>
+    <div class="steps">
+      <div class="card"><h3>Установите</h3><p>Все ставят одно и то же приложение. Установка — пара секунд, права администратора не нужны. При первом запуске — имя и фото.</p></div>
+      <div class="card"><h3>Один создаёт сервер</h3><p>Кто-то из друзей нажимает «Создать сервер». Сервер работает прямо в программе, пока она открыта или свёрнута в трей.</p></div>
+      <div class="card"><h3>Остальные подключаются</h3><p>Сервер сам появляется в списке «Найдено в сети». Если не виден — вставьте адрес, который покажет хост.</p></div>
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>Что внутри</h2>
+    <div class="features">
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg></div><div><b>Голосовые каналы</b><span>Шумо- и эхоподавление, «кто говорит», громкость каждого отдельно</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div><b>Трансляция экрана</b><span>До 4K · 60 к/с, со звуком, во весь экран и в мини-окне</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div><div><b>Файлы любого размера</b><span>Перетащите в окно: картинки, видео, музыка, архивы на гигабайты</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><b>Только ваша сеть</b><span>Без внешних серверов и аккаунтов. Голос шифруется, есть пароль на сервер</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></div><div><b>Windows и Android</b><span>С телефона — чат, голос и просмотр трансляций</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8"/></svg></div><div><b>Обновления от хоста</b><span>Новую версию раздаёт хост — интернет для обновления не нужен</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Как выглядит</h2>
+    <div class="gallery">
+      <figure><img src="img/themes.png" alt="Семь тем оформления" loading="lazy"><figcaption>7 тем оформления, свой цвет акцента и размер интерфейса</figcaption></figure>
+      <figure><img src="img/chat.png" alt="Чат с картинкой и файлом" loading="lazy"><figcaption>Картинки, видео и файлы прямо в чате</figcaption></figure>
+    </div>
+    <figure style="margin-top:16px"><img src="img/mobile.png" alt="LocalCord на телефоне" loading="lazy" style="width:100%;border-radius:12px;border:1px solid var(--line)"><figcaption style="font-size:14px;color:var(--muted);margin-top:8px">На телефоне: чат, каналы, голос, трансляция и мини-окно</figcaption></figure>
+  </section>
+
+  <section id="faq">
+    <h2>Вопросы</h2>
+    <details open><summary>Windows пишет «Система Windows защитила ваш компьютер»</summary>
+      <p>Установщик не подписан платным сертификатом, поэтому SmartScreen его не знает. Нажмите «Подробнее» → «Выполнить в любом случае».</p></details>
+    <details><summary>Как друзьям из другого города подключиться?</summary>
+      <p>Всем, включая хоста, нужно быть в одной виртуальной сети — например <a href="https://www.radmin-vpn.com/ru/">Radmin VPN</a>. Хосту стоит один раз нажать «Разрешить» в окне «Пригласить друзей», чтобы брандмауэр Windows пропускал друзей.</p></details>
+    <details><summary>Нужен ли Radmin на телефоне?</summary>
+      <p>Radmin VPN есть только для Windows. Дома в одном Wi-Fi с хостом телефон находит сервер сам. Вне дома нужна VPN-сеть с приложением для Android (например ZeroTier или Tailscale), в которой есть и компьютер хоста — он может быть в Radmin и в такой сети одновременно.</p></details>
+    <details><summary>Как поставить APK на Android?</summary>
+      <p>Скачайте файл на телефон и откройте его. Android попросит разрешить установку из браузера или менеджера файлов — разрешите один раз. Новые версии ставятся поверх старой, профиль сохраняется.</p></details>
+    <details><summary>Где хранятся сообщения и файлы?</summary>
+      <p>Только на компьютере хоста. Голос и видео идут напрямую между участниками и всегда зашифрованы.</p></details>
+  </section>
+
+  <footer>
+    <span>© 2026 Zubakamaraka</span>
+    <a href="https://github.com/Zubakamaraka/Localcord">Исходный код на GitHub</a>
+    <a href="https://github.com/Zubakamaraka/Localcord/blob/main/LICENSE">Лицензия PolyForm Noncommercial — бесплатно для некоммерческого использования</a>
+  </footer>
+</div>
+
+<script>
+  // Android-телефон — главной делаем кнопку APK
+  if (/Android/i.test(navigator.userAgent)) {
+    const w = document.getElementById('btn-win'), a = document.getElementById('btn-apk');
+    w.classList.remove('primary'); a.classList.add('primary');
+    a.parentNode.insertBefore(a, w);
+  }
+  // Номер версии и размер — с GitHub (если не получится, кнопки и так ведут на последнюю версию)
+  const mb = n => (n / 1048576).toFixed(n > 10485760 ? 0 : 1) + ' МБ';
+  fetch('https://api.github.com/repos/Zubakamaraka/Localcord/releases/latest')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(rel => {
+      const v = String(rel.tag_name || '').replace(/^v/, '');
+      const exe = rel.assets.find(x => /^LocalCord-Setup-.*\.exe$/.test(x.name));
+      const apk = rel.assets.find(x => /^LocalCord-\d.*\.apk$/.test(x.name));
+      if (exe) { document.getElementById('btn-win').href = exe.browser_download_url; document.getElementById('win-meta').textContent = `Версия ${v} · ${mb(exe.size)} · Windows 10/11`; }
+      if (apk) { document.getElementById('btn-apk').href = apk.browser_download_url; document.getElementById('apk-meta').textContent = `Версия ${v} · ${mb(apk.size)} · Android 7+`; }
+      const d = new Date(rel.published_at);
+      document.getElementById('meta').insertAdjacentHTML('afterbegin', `Обновлено ${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })} · `);
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>
