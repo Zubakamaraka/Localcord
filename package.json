@@ -1,7 +1,7 @@
 {
   "name": "localcord",
   "productName": "LocalCord",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Голос, чат и демонстрация экрана для локальной сети и Radmin VPN — Windows и Android",
   "author": "Zubakamaraka",
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -57,7 +57,7 @@
       "executableName": "LocalCord"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
       "runAfterFinish": true,
       "createDesktopShortcut": "always",
@@ -68,7 +68,17 @@
       "uninstallerIcon": "build/icon.ico",
       "deleteAppDataOnUninstall": false,
       "include": "build/installer.nsh",
-      "artifactName": "LocalCord-Setup-${version}.${ext}"
+      "artifactName": "LocalCord-Setup-${version}.${ext}",
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerLanguages": [
+        "ru_RU",
+        "en_US"
+      ],
+      "language": "1049"
     },
     "electronLanguages": [
       "ru",

@@ -31,7 +31,7 @@ const browserApi = (() => {
       set: async (patch) => { const v = merge(merge(defaults, read()), patch); localStorage.setItem(KEY, JSON.stringify(v)); return v; },
     },
     app: {
-      info: async () => ({ version: '2.1.1', platform: 'browser', packaged: false }),
+      info: async () => ({ version: '2.1.2', platform: 'browser', packaged: false }),
       setLoginItem: async () => false, uninstall: unsupported,
       openExternal: url => window.open(url, '_blank', 'noopener'),
       showItem: noop, quit: noop,
