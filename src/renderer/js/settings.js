@@ -343,7 +343,7 @@ const Settings = {
     const data = h(`<div class="toggle-row"><div class="tr-text"><b>Папка сервера</b><span>История сообщений, вложения и каналы</span></div><button class="btn">${icon('folder', 16)} Открыть</button></div>`);
     data.querySelector('button').onclick = () => App.api.host.openData();
     more.appendChild(data);
-    const upd = h(`<div class="toggle-row"><div class="tr-text"><b>Раздача обновлений</b><span>${st.canDistributeUpdate ? 'Включена: друзья со старой версией получат версию ' + esc(App.info.version) + ' в один клик.' : 'Станет доступна после установки LocalCord через установщик.'}</span></div></div>`);
+    const upd = h(`<div class="toggle-row"><div class="tr-text"><b>Раздача обновлений</b><span>${st.canDistributeUpdate ? 'Готова: друзья со старой версией получат версию ' + esc(App.info.version) + ' в один клик.' : 'Файл обновления загрузится с GitHub при подключении к интернету, затем хост раздаст его друзьям.'}</span></div></div>`);
     more.appendChild(upd);
     root.appendChild(more);
   },

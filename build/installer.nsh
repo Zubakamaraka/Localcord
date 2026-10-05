@@ -25,9 +25,6 @@
 !macroend
 
 !macro customInstall
-  ; Копия установщика: хост раздаёт её друзьям как обновление
-  CreateDirectory "$INSTDIR\update-package"
-  CopyFiles /SILENT "$EXEPATH" "$INSTDIR\update-package\LocalCord-Setup.exe"
   ; Ярлык быстрого удаления в меню «Пуск»
   CreateShortCut "$SMPROGRAMS\Удалить LocalCord.lnk" "$INSTDIR\Uninstall LocalCord.exe" "" "$INSTDIR\uninstallerIcon.ico" 0
 !macroend

@@ -668,6 +668,7 @@ async function createServer(opts = {}) {
       if ('password' in patch) cfg.password = String(patch.password || '');
       if ('rateMax' in patch) cfg.rateMax = Number(patch.rateMax) || RATE_MAX;
       if ('maxFileMB' in patch) cfg.maxFileMB = Math.max(1, Number(patch.maxFileMB) || cfg.maxFileMB);
+      if ('installerPath' in patch) cfg.installerPath = patch.installerPath || null;
       io.to('authed').emit('server-info', serverInfo());
     },
     async close() {

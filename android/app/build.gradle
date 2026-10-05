@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 // Версия приложения: LC_VERSION задаёт сборка на GitHub (из package.json)
-def lcVersion = System.getenv("LC_VERSION") ?: "2.1.2"
+def lcVersion = System.getenv("LC_VERSION") ?: "2.1.3"
 def lcParts = lcVersion.tokenize('.').collect { (it.replaceAll(/[^0-9].*$/, '') ?: '0') as int }
 def lcVersionCode = lcParts[0] * 10000 + lcParts[1] * 100 + lcParts[2]
 

@@ -10,7 +10,11 @@ const {
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const https = require('https');
 const { spawn, execFile } = require('child_process');
+
+// Репозиторий с релизами: отсюда хост берёт установщик для раздачи обновлений
+const REPO = 'Zubakamaraka/Localcord';
 
 app.setName('LocalCord');
 // LOCALCORD_PROFILE — отдельный профиль (например, чтобы запустить два клиента на одном ПК для проверки)
@@ -193,9 +197,60 @@ let pendingShare = null;
 let hostSrv = null;
 let hostDisc = null;
 
+// Путь к закэшированному установщику своей версии (его раздаёт хост друзьям).
+// Файл не лежит рядом с программой — хост скачивает его с GitHub по необходимости.
+let cachedInstaller = null;
+
 function installerPath() {
-  if (!app.isPackaged) return null;
-  return path.join(path.dirname(process.execPath), 'update-package', 'LocalCord-Setup.exe');
+  return cachedInstaller;
+}
+
+// Скачать файл по https с переходами (GitHub отдаёт релизы через редирект)
+function httpsDownload(url, dest, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) return reject(new Error('too many redirects'));
+    const req = https.get(url, { headers: { 'User-Agent': 'LocalCord' } }, res => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+        res.resume();
+        return resolve(httpsDownload(res.headers.location, dest, redirects + 1));
+      }
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode}`)); }
+      const tmp = dest + '.part';
+      const out = fs.createWriteStream(tmp);
+      res.pipe(out);
+      out.on('finish', () => out.close(() => { try { fs.renameSync(tmp, dest); resolve(dest); } catch (e) { reject(e); } }));
+      out.on('error', e => { try { fs.unlinkSync(tmp); } catch { /* ignore */ } reject(e); });
+    });
+    req.on('error', reject);
+    req.setTimeout(120000, () => req.destroy(new Error('timeout')));
+  });
+}
+
+// Убедиться, что установщик своей версии скачан в кэш. Если нет интернета —
+// вернёт null, и раздача обновлений просто будет недоступна (друзья увидят ссылку на страницу).
+async function ensureInstaller() {
+  if (process.platform !== 'win32' || !app.isPackaged) return null;
+  const v = app.getVersion();
+  const dir = path.join(app.getPath('userData'), 'update-cache');
+  const dest = path.join(dir, `LocalCord-Setup-${v}.exe`);
+  try {
+    if (fs.existsSync(dest) && fs.statSync(dest).size > 50 * 1024 * 1024) {
+      cachedInstaller = dest;
+      return dest;
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    const url = `https://github.com/${REPO}/releases/download/v${v}/LocalCord-Setup-${v}.exe`;
+    await httpsDownload(url, dest);
+    if (fs.statSync(dest).size < 50 * 1024 * 1024) throw new Error('файл подозрительно мал');
+    cachedInstaller = dest;
+    if (hostSrv) hostSrv.setOptions({ installerPath: dest });
+    return dest;
+  } catch (e) {
+    console.error('ensureInstaller:', e.message);
+    try { fs.unlinkSync(dest); } catch { /* ignore */ }
+    cachedInstaller = null;
+    return null;
+  }
 }
 
 function hostStatus() {
@@ -230,6 +285,8 @@ async function startHost() {
   }
   hostDisc = startResponder(() => ({ ...hostSrv.info(), port: hostSrv.port }));
   tray && tray.refresh();
+  // В фоне подтягиваем установщик своей версии с GitHub, чтобы раздавать обновления друзьям
+  ensureInstaller().then(p => { if (p && hostSrv) hostSrv.setOptions({ installerPath: p }); });
   return { ok: true, status: hostStatus() };
 }
 
@@ -255,15 +312,16 @@ function firewallStatus() {
 function firewallAllow() {
   return new Promise(resolve => {
     if (process.platform !== 'win32') return resolve({ ok: true });
-    const b64 = s => Buffer.from(s, 'utf16le').toString('base64');
-    const exe = process.execPath.replace(/'/g, "''");
-    // Команда, которая выполнится с правами администратора (один запрос UAC)
-    const inner = [
-      `netsh advfirewall firewall delete rule name=${FW_RULE} | Out-Null`,
-      `netsh advfirewall firewall add rule name=${FW_RULE} dir=in action=allow enable=yes profile=any ('program=' + '${exe}')`,
-    ].join('; ');
-    const outer = `Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-EncodedCommand','${b64(inner)}'`;
-    execFile('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', b64(outer)], { windowsHide: true }, async () => {
+    // Открытая (не закодированная) команда: один запрос прав администратора,
+    // затем обычный netsh добавляет правило для брандмауэра Windows.
+    const exeCmd = process.execPath;                       // путь в двойных кавычках для cmd
+    const argline =
+      `/c netsh advfirewall firewall delete rule name=${FW_RULE} & ` +
+      `netsh advfirewall firewall add rule name=${FW_RULE} dir=in action=allow ` +
+      `program="${exeCmd}" enable=yes profile=any`;
+    const psArg = argline.replace(/'/g, "''");             // экранируем для строки PowerShell
+    const outer = `Start-Process -FilePath cmd.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '${psArg}'`;
+    execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', outer], { windowsHide: true }, async () => {
       resolve({ ok: (await firewallStatus()).allowed });
     });
   });
