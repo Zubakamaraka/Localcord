@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="voice_channel_name">Голосовой канал</string>
+    <string name="voice_channel_desc">Показывается, пока вы в голосовом канале LocalCord</string>
+    <string name="voice_connected">Голос подключён</string>
+</resources>

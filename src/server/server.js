@@ -27,6 +27,15 @@ const DEFAULT_CHANNELS = [
   { id: 'voice-main', name: 'Общий голосовой', type: 'voice' },
   { id: 'voice-games', name: 'Игровой', type: 'voice' },
 ];
+// Те же каналы для сервера, созданного в английском интерфейсе
+const DEFAULT_CHANNELS_EN = [
+  { id: 'general', name: 'general', type: 'text' },
+  { id: 'games', name: 'games', type: 'text' },
+  { id: 'media', name: 'memes-and-screenshots', type: 'text' },
+  { id: 'voice-main', name: 'General voice', type: 'voice' },
+  { id: 'voice-games', name: 'Gaming', type: 'voice' },
+];
+const AVATAR_MAX = 700 * 1024;     // символов в data:-ссылке (анимированный аватар ≈ до 500 КБ)
 
 function rid(bytes = 9) {
   return crypto.randomBytes(bytes).toString('base64url');
@@ -53,8 +62,22 @@ function cleanColor(c) {
 function cleanAvatar(a) {
   if (typeof a !== 'string') return null;
   if (!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(a)) return null;
-  if (a.length > 200 * 1024) return null;
+  if (a.length > AVATAR_MAX) return null;
   return a;
+}
+
+// Оформление профиля: рамка аватара и шрифт имени — короткие идентификаторы из набора клиента
+function cleanStyleId(v) {
+  return typeof v === 'string' && /^[a-z0-9-]{1,20}$/.test(v) ? v : null;
+}
+
+function cleanProfile(user, data) {
+  const p = { username: user.username, color: user.color, avatar: cleanAvatar(data.avatar) };
+  const frame = cleanStyleId(data.frame);
+  const font = cleanStyleId(data.font);
+  if (frame) p.frame = frame;
+  if (font) p.font = font;
+  return p;
 }
 
 function cleanFileName(name) {
@@ -100,6 +123,8 @@ class JsonFile {
  * @param {string} opts.dataDir          папка для истории и вложений
  * @param {string} [opts.appVersion]     версия приложения хоста
  * @param {string} [opts.installerPath]  установщик для раздачи обновлений
+ * @param {string} [opts.adminKey]       секрет владельца: с ним вход без пароля и с правами хоста по любому адресу
+ * @param {string} [opts.lang='ru']      язык названий каналов нового сервера ('ru' | 'en')
  * @param {number} [opts.maxFileMB=4096]
  * @param {boolean} [opts.persist=true]  хранить историю на диске
  * @param {function} [opts.log]
@@ -112,6 +137,8 @@ async function createServer(opts = {}) {
     password: '',
     appVersion: '0.0.0',
     installerPath: null,
+    adminKey: '',
+    lang: 'ru',
     maxFileMB: 4096,
     persist: true,
     rateMax: RATE_MAX,
@@ -128,7 +155,14 @@ async function createServer(opts = {}) {
   for (const d of Object.values(dirs)) await fsp.mkdir(d, { recursive: true });
 
   // ---------- состояние ----------
-  const channelsFile = new JsonFile(path.join(dirs.root, 'channels.json'), DEFAULT_CHANNELS.map(c => ({ ...c })));
+  const channelsFile = new JsonFile(path.join(dirs.root, 'channels.json'), (cfg.lang === 'en' ? DEFAULT_CHANNELS_EN : DEFAULT_CHANNELS).map(c => ({ ...c })));
+  // Постоянный идентификатор сервера: по нему клиенты понимают, что разные адреса — это один и тот же сервер
+  const metaFile = new JsonFile(path.join(dirs.root, 'server.json'), {});
+  if (!metaFile.data || typeof metaFile.data.id !== 'string' || !metaFile.data.id) {
+    metaFile.data = { id: rid(12), created: Date.now() };
+    if (cfg.persist) metaFile.flush();
+  }
+  const serverId = metaFile.data.id;
   const profilesFile = new JsonFile(path.join(dirs.root, 'profiles.json'), {});
   const uploadsFile = new JsonFile(path.join(dirs.root, 'uploads.json'), {});
 
@@ -213,6 +247,7 @@ async function createServer(opts = {}) {
   function serverInfo() {
     return {
       app: 'localcord',
+      id: serverId,
       name: cfg.name,
       version: cfg.appVersion,
       locked: !!cfg.password,
@@ -331,7 +366,7 @@ async function createServer(opts = {}) {
     if (req.method === 'GET' && p === '/update/installer') return handleInstaller(req, res);
     if (req.method === 'GET' && p === '/') {
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-      return res.end(`LocalCord server "${cfg.name}" v${cfg.appVersion} работает.\nПодключайтесь через приложение LocalCord.`);
+      return res.end(`LocalCord server "${cfg.name}" v${cfg.appVersion}\nПодключайтесь через приложение LocalCord. / Connect with the LocalCord app.`);
     }
     res.writeHead(404); res.end();
   });
@@ -339,7 +374,7 @@ async function createServer(opts = {}) {
   // ---------- Socket.IO ----------
   const io = new Server(httpServer, {
     cors: { origin: '*' },
-    maxHttpBufferSize: 1e6, // 1 МБ на пакет — файлы идут через HTTP
+    maxHttpBufferSize: 2e6, // 2 МБ на пакет (профиль с анимированным аватаром) — файлы идут через HTTP
     pingInterval: 10000,
     pingTimeout: 15000,
   });
@@ -386,7 +421,9 @@ async function createServer(opts = {}) {
       const reply = typeof ack === 'function' ? ack : () => {};
       data = data || {};
       if (users.has(socket.id)) return reply({ ok: true });
-      if (cfg.password && !safeEqual(data.password || '', cfg.password)) {
+      // владелец предъявляет секрет, который знает только его приложение, — пароль ему не нужен
+      const owner = !!cfg.adminKey && typeof data.adminKey === 'string' && safeEqual(data.adminKey, cfg.adminKey);
+      if (cfg.password && !owner && !safeEqual(data.password || '', cfg.password)) {
         reply({ ok: false, error: 'bad-password' });
         return setTimeout(() => socket.disconnect(true), 200);
       }
@@ -398,11 +435,11 @@ async function createServer(opts = {}) {
         username,
         color: cleanColor(data.color),
         token: rid(18),
-        isAdmin: isLoopback(addr),
+        isAdmin: owner || (isLoopback(addr) && !cfg.adminKey),
         voiceChannel: null,
       };
       users.set(socket.id, user);
-      profilesFile.data[clientId] = { username: user.username, color: user.color, avatar: cleanAvatar(data.avatar) };
+      profilesFile.data[clientId] = cleanProfile(user, data);
       if (cfg.persist) profilesFile.save();
       socket.join('authed');
       cfg.log(`+ ${username} (${addr})`);
@@ -429,7 +466,7 @@ async function createServer(opts = {}) {
     on('profile-update', (user, data = {}) => {
       user.username = cleanName(data.username, 32) || user.username;
       user.color = cleanColor(data.color || user.color);
-      profilesFile.data[user.clientId] = { username: user.username, color: user.color, avatar: cleanAvatar(data.avatar) };
+      profilesFile.data[user.clientId] = cleanProfile(user, data);
       if (cfg.persist) profilesFile.save();
       io.to('authed').emit('profile', { clientId: user.clientId, profile: profilesFile.data[user.clientId] });
       if (user.voiceChannel) {
@@ -662,6 +699,7 @@ async function createServer(opts = {}) {
 
   return {
     port,
+    id: serverId,
     info: serverInfo,
     setOptions(patch = {}) {
       if ('name' in patch) cfg.name = cleanName(patch.name, 40) || cfg.name;
@@ -688,4 +726,4 @@ async function createServer(opts = {}) {
   };
 }
 
-module.exports = { createServer, DEFAULT_CHANNELS };
+module.exports = { createServer, DEFAULT_CHANNELS, DEFAULT_CHANNELS_EN };

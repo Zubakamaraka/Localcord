@@ -57,14 +57,44 @@ function startResponder(getInfo, { port = DISCOVERY_PORT, log = () => {} } = {})
   return { close: () => { try { sock.close(); } catch { /* ignore */ } } };
 }
 
-/** Поиск серверов. Возвращает [{ address, port, name, version, locked, users }] */
+/** Насколько адрес удобен для подключения: своя подсеть лучше VPN, VPN лучше петли */
+function addressRank(host, mine) {
+  if (host === '127.0.0.1') return 9;
+  const ip = host.split('.').map(Number);
+  for (const a of mine) {
+    const my = a.address.split('.').map(Number);
+    const mask = String(a.netmask || '255.255.255.0').split('.').map(Number);
+    if (ip.length === 4 && ip.every((b, i) => (b & mask[i]) === (my[i] & mask[i]))) return a.kind === 'lan' ? 0 : 1;
+  }
+  return 5;
+}
+
+/**
+ * Склеивает ответы одного и того же сервера, пришедшие с разных его адресов
+ * (Wi-Fi, Radmin VPN, раздача интернета и т. д.), в одну запись.
+ * Сервер узнаётся по постоянному id; у старых версий без id — по адресу.
+ */
+function mergeReplies(replies, mine = localAddresses()) {
+  const byKey = new Map();
+  for (const r of replies) {
+    const key = r.id ? `id:${r.id}` : `addr:${r.address}`;
+    const rank = addressRank(r.host, mine);
+    const cur = byKey.get(key);
+    if (!cur) { byKey.set(key, { ...r, addresses: [r.address], rank }); continue; }
+    if (!cur.addresses.includes(r.address)) cur.addresses.push(r.address);
+    if (rank < cur.rank) Object.assign(cur, { ...r, addresses: cur.addresses, rank });
+  }
+  return [...byKey.values()].map(({ rank, ...s }) => s);
+}
+
+/** Поиск серверов. Возвращает [{ id, address, addresses, port, name, version, locked, users }] — по одной записи на сервер */
 function discover({ timeout = 1500, port = DISCOVERY_PORT } = {}) {
   return new Promise(resolve => {
     const found = new Map();
     const sock = dgram.createSocket('udp4');
     const finish = () => {
       try { sock.close(); } catch { /* ignore */ }
-      resolve([...found.values()]);
+      resolve(mergeReplies([...found.values()]));
     };
     sock.on('error', finish);
     sock.on('message', (msg, rinfo) => {
@@ -73,7 +103,7 @@ function discover({ timeout = 1500, port = DISCOVERY_PORT } = {}) {
       try {
         const info = JSON.parse(s.slice(MAGIC_A.length));
         const key = `${rinfo.address}:${info.port}`;
-        found.set(key, { address: `${rinfo.address}:${info.port}`, host: rinfo.address, ...info });
+        found.set(key, { ...info, address: `${rinfo.address}:${info.port}`, host: rinfo.address });
       } catch { /* ignore */ }
     });
     sock.bind(0, () => {
@@ -88,4 +118,4 @@ function discover({ timeout = 1500, port = DISCOVERY_PORT } = {}) {
   });
 }
 
-module.exports = { startResponder, discover, localAddresses, DISCOVERY_PORT };
+module.exports = { startResponder, discover, mergeReplies, localAddresses, DISCOVERY_PORT };

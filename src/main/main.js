@@ -11,10 +11,8 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const crypto = require('crypto');
 const { spawn, execFile } = require('child_process');
-
-// Репозиторий с релизами: отсюда хост берёт установщик для раздачи обновлений
-const REPO = 'Zubakamaraka/Localcord';
 
 app.setName('LocalCord');
 // LOCALCORD_PROFILE — отдельный профиль (например, чтобы запустить два клиента на одном ПК для проверки)
@@ -30,6 +28,9 @@ if (process.env.LOCALCORD_FAKE_MEDIA) {
 if (process.platform === 'win32') app.setAppUserModelId('com.localcord.app');
 
 const store = require('./store');
+const { t, lang } = require('./i18n');
+const updater = require('./updater');
+const { REPO } = updater; // репозиторий с выпусками: обновления и установщик для раздачи друзьям
 const { createServer } = require('../server/server');
 const { startResponder, discover, localAddresses } = require('../server/discovery');
 
@@ -99,8 +100,8 @@ function createWindow() {
       if (!trayHintShown && Notification.isSupported()) {
         trayHintShown = true;
         new Notification({
-          title: 'LocalCord работает в фоне',
-          body: hostSrv ? 'Сервер продолжает работать. Выйти — через значок в трее.' : 'Значок в трее → «Выход», чтобы закрыть полностью.',
+          title: t('LocalCord работает в фоне'),
+          body: hostSrv ? t('Сервер продолжает работать. Выйти — через значок в трее.') : t('Значок в трее → «Выход», чтобы закрыть полностью.'),
           icon: ICON,
         }).show();
       }
@@ -135,11 +136,11 @@ function createTray() {
   tray = new Tray(img);
   tray.setToolTip('LocalCord');
   const menu = () => Menu.buildFromTemplate([
-    { label: 'Открыть LocalCord', click: showWindow },
+    { label: t('Открыть LocalCord'), click: showWindow },
     { type: 'separator' },
-    { label: hostSrv ? `Сервер работает (порт ${hostSrv.port})` : 'Сервер не запущен', enabled: false },
+    { label: hostSrv ? t('Сервер работает (порт {port})', { port: hostSrv.port }) : t('Сервер не запущен'), enabled: false },
     { type: 'separator' },
-    { label: 'Выход', click: () => { isQuitting = true; app.quit(); } },
+    { label: t('Выход'), click: () => { isQuitting = true; app.quit(); } },
   ]);
   tray.setContextMenu(menu());
   tray.on('click', showWindow);
@@ -241,7 +242,7 @@ async function ensureInstaller() {
     fs.mkdirSync(dir, { recursive: true });
     const url = `https://github.com/${REPO}/releases/download/v${v}/LocalCord-Setup-${v}.exe`;
     await httpsDownload(url, dest);
-    if (fs.statSync(dest).size < 50 * 1024 * 1024) throw new Error('файл подозрительно мал');
+    if (fs.statSync(dest).size < 50 * 1024 * 1024) throw new Error('file is too small');
     cachedInstaller = dest;
     if (hostSrv) hostSrv.setOptions({ installerPath: dest });
     return dest;
@@ -253,47 +254,87 @@ async function ensureInstaller() {
   }
 }
 
+// Секрет владельца: живёт только в памяти этого запуска. С ним приложение хоста входит
+// на свой сервер без пароля и с правами владельца — по любому адресу, не только 127.0.0.1.
+const ADMIN_KEY = crypto.randomBytes(24).toString('base64url');
+const dataDir = () => path.join(app.getPath('userData'), 'server-data');
+
+/** Сервер считается созданным, пока его не остановили или не удалили (до 2.2 это определялось по mode) */
+function hostEnabled(s = store.get()) {
+  return typeof s.host.enabled === 'boolean' ? s.host.enabled : s.mode === 'host';
+}
+
 function hostStatus() {
   const s = store.get().host;
   return {
     running: !!hostSrv,
+    enabled: hostEnabled(),
+    id: hostSrv ? hostSrv.id : null,
+    adminKey: hostSrv ? ADMIN_KEY : null,
     port: hostSrv ? hostSrv.port : s.port,
     name: s.name,
     hasPassword: !!s.password,
     addresses: localAddresses(),
-    dataDir: path.join(app.getPath('userData'), 'server-data'),
+    dataDir: dataDir(),
+    hasData: fs.existsSync(path.join(dataDir(), 'channels.json')),
     canDistributeUpdate: !!(installerPath() && fs.existsSync(installerPath())),
   };
 }
 
 async function startHost() {
   const s = store.get().host;
-  if (hostSrv) await stopHost();
+  if (hostSrv) await stopHost({ keepEnabled: true });
   try {
     hostSrv = await createServer({
       port: Number(s.port) || 3000,
       name: s.name,
       password: s.password,
       maxFileMB: s.maxFileMB,
-      dataDir: path.join(app.getPath('userData'), 'server-data'),
+      dataDir: dataDir(),
       appVersion: app.getVersion(),
       installerPath: installerPath(),
+      adminKey: ADMIN_KEY,
+      lang: lang(),
     });
   } catch (e) {
     hostSrv = null;
     return { ok: false, error: e.code === 'EADDRINUSE' ? 'port-busy' : e.message };
   }
   hostDisc = startResponder(() => ({ ...hostSrv.info(), port: hostSrv.port }));
+  if (!store.get().host.enabled) store.set({ host: { enabled: true } });
   tray && tray.refresh();
   // В фоне подтягиваем установщик своей версии с GitHub, чтобы раздавать обновления друзьям
   ensureInstaller().then(p => { if (p && hostSrv) hostSrv.setOptions({ installerPath: p }); });
   return { ok: true, status: hostStatus() };
 }
 
-async function stopHost() {
+/**
+ * Применить сохранённые настройки к серверу. Если он уже работает — имя, пароль и лимит
+ * меняются на лету, а смена порта перезапускает сервер. Раньше работающий сервер
+ * продолжал жить со старым паролем, и вход с новым давал «Неверный пароль».
+ */
+async function applyHost() {
+  const s = store.get().host;
+  if (!hostSrv || hostSrv.port !== (Number(s.port) || 3000)) return startHost();
+  hostSrv.setOptions({ name: s.name, password: s.password, maxFileMB: s.maxFileMB });
+  tray && tray.refresh();
+  return { ok: true, status: hostStatus() };
+}
+
+async function stopHost({ keepEnabled = false } = {}) {
   if (hostDisc) { hostDisc.close(); hostDisc = null; }
   if (hostSrv) { const s = hostSrv; hostSrv = null; await s.close().catch(() => {}); }
+  if (!keepEnabled && store.get().host.enabled !== false) store.set({ host: { enabled: false } });
   tray && tray.refresh();
+  return { ok: true, status: hostStatus() };
+}
+
+/** Удалить сервер совсем: остановить и стереть каналы, историю и вложения */
+async function deleteHost() {
+  await stopHost();
+  try { fs.rmSync(dataDir(), { recursive: true, force: true }); }
+  catch (e) { return { ok: false, error: e.message }; }
+  store.set({ host: { enabled: false, password: '' } });
   return { ok: true, status: hostStatus() };
 }
 
@@ -355,8 +396,30 @@ function downloadUpdate(baseUrl, version) {
   });
 }
 
+// ---------- обновления с GitHub и откат на прошлую версию ----------
+async function listUpdates(force) {
+  try {
+    return { ok: true, current: app.getVersion(), releases: await updater.listReleases({ force: !!force }) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+async function fetchRelease(tag) {
+  try {
+    const rel = (await updater.listReleases()).find(r => r.tag === tag);
+    if (!rel) return { ok: false, error: 'not-found' };
+    updateFile = await updater.downloadRelease(rel, path.join(app.getPath('userData'), 'update-cache'),
+      p => win && win.webContents.send('update:progress', p));
+    return { ok: true, version: rel.version };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 function installUpdate() {
   if (!updateFile || !fs.existsSync(updateFile)) return { ok: false, error: 'no-file' };
+  if (process.platform !== 'win32') return { ok: false, error: 'unsupported' };
   // --updated: не удалять данные; /S: тихо; --force-run: запустить после установки
   spawn(updateFile, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
   setTimeout(() => { isQuitting = true; app.quit(); }, 300);
@@ -385,13 +448,19 @@ function setupIpc() {
   ipcMain.handle('window:isMaximized', () => !!win && win.isMaximized());
 
   ipcMain.handle('store:get', () => store.get());
-  ipcMain.handle('store:set', (e, patch) => store.set(patch));
+  ipcMain.handle('store:set', (e, patch) => {
+    const before = lang();
+    const res = store.set(patch);
+    if (lang() !== before && tray) tray.refresh(); // язык меню в трее
+    return res;
+  });
 
   ipcMain.handle('app:info', () => ({
     version: app.getVersion(),
     platform: process.platform,
     packaged: app.isPackaged,
     userData: app.getPath('userData'),
+    lang: lang(),
   }));
   ipcMain.handle('app:setLoginItem', (e, on) => {
     app.setLoginItemSettings({ openAtLogin: !!on, args: ['--hidden'] });
@@ -423,23 +492,31 @@ function setupIpc() {
 
   ipcMain.handle('host:start', () => startHost());
   ipcMain.handle('host:stop', () => stopHost());
+  ipcMain.handle('host:apply', () => applyHost());
+  ipcMain.handle('host:delete', () => deleteHost());
   ipcMain.handle('host:status', () => hostStatus());
   ipcMain.handle('host:update', (e, patch) => {
     if (hostSrv) hostSrv.setOptions(patch || {});
     return hostStatus();
   });
   ipcMain.on('host:openData', () => {
-    const d = path.join(app.getPath('userData'), 'server-data');
+    const d = dataDir();
     fs.mkdirSync(d, { recursive: true });
     shell.openPath(d);
   });
   ipcMain.handle('net:addresses', () => localAddresses());
-  ipcMain.handle('net:discover', () => discover({ timeout: 1500 }));
+  ipcMain.handle('net:discover', async () => {
+    const list = await discover({ timeout: 1500 });
+    // свой сервер помечаем: в списке он показывается одной строкой «ваш сервер»
+    return list.map(s => (hostSrv && s.id && s.id === hostSrv.id ? { ...s, own: true, address: `127.0.0.1:${hostSrv.port}` } : s));
+  });
   ipcMain.handle('firewall:status', () => firewallStatus());
   ipcMain.handle('firewall:allow', () => firewallAllow());
 
   ipcMain.handle('update:download', (e, { baseUrl, version }) => downloadUpdate(baseUrl, version));
   ipcMain.handle('update:install', () => installUpdate());
+  ipcMain.handle('update:list', (e, force) => listUpdates(force));
+  ipcMain.handle('update:fetch', (e, tag) => fetchRelease(String(tag || '')));
 }
 
 // ---------- запуск ----------
@@ -448,7 +525,7 @@ app.whenReady().then(async () => {
   setupIpc();
   Menu.setApplicationMenu(null);
   const s = store.get();
-  if (s.onboarded && s.mode === 'host' && s.host.autoStart) await startHost();
+  if (s.onboarded && hostEnabled(s) && s.host.autoStart) await startHost();
   createWindow();
   createTray();
 });
@@ -463,11 +540,11 @@ app.on('before-quit', e => {
   if (hostSrv && !closing) {
     e.preventDefault();
     closing = true;
-    stopHost().finally(() => app.quit());
+    stopHost({ keepEnabled: true }).finally(() => app.quit());
   }
 });
 
 process.on('uncaughtException', err => {
   console.error(err);
-  try { dialog.showErrorBox('LocalCord — ошибка', String(err && err.stack || err)); } catch { /* ignore */ }
+  try { dialog.showErrorBox(t('LocalCord — ошибка'), String(err && err.stack || err)); } catch { /* ignore */ }
 });

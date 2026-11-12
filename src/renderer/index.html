@@ -14,9 +14,9 @@
   <div class="tb-logo" id="tb-logo"></div>
   <div class="tb-center" id="tb-center"></div>
   <div class="win-ctrls" id="win-ctrls">
-    <button class="win-btn" id="win-min" title="Свернуть"></button>
-    <button class="win-btn" id="win-max" title="Развернуть"></button>
-    <button class="win-btn close" id="win-close" title="Закрыть"></button>
+    <button class="win-btn" id="win-min" data-i18n-title="Свернуть"></button>
+    <button class="win-btn" id="win-max" data-i18n-title="Развернуть"></button>
+    <button class="win-btn close" id="win-close" data-i18n-title="Закрыть"></button>
   </div>
 </header>
 
@@ -37,7 +37,7 @@
 
     <main id="main">
       <div id="main-header">
-        <button class="icon-btn" id="nav-toggle" title="Каналы"></button>
+        <button class="icon-btn" id="nav-toggle" data-i18n-title="Каналы"></button>
         <span class="h-icon" id="h-icon"></span>
         <span class="h-name" id="h-name"></span>
         <span class="h-topic" id="h-topic"></span>
@@ -50,9 +50,9 @@
         <div id="composer">
           <div id="pending-files" class="pending-files hidden"></div>
           <div class="input-box">
-            <button class="icon-btn" id="attach-btn" title="Прикрепить файл"></button>
-            <textarea id="message-input" rows="1" placeholder="Написать сообщение"></textarea>
-            <button class="icon-btn" id="send-btn" title="Отправить (Enter)"></button>
+            <button class="icon-btn" id="attach-btn" data-i18n-title="Прикрепить файл"></button>
+            <textarea id="message-input" rows="1" data-i18n-ph="Написать сообщение"></textarea>
+            <button class="icon-btn" id="send-btn" data-i18n-title="Отправить (Enter)"></button>
           </div>
           <input type="file" id="file-input" multiple hidden>
         </div>
@@ -82,6 +82,9 @@
 
 <script src="vendor/socket.io.min.js"></script>
 <script src="js/icons.js"></script>
+<script src="vendor/gifenc.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/lang/en.js"></script>
 <script src="js/util.js"></script>
 <script src="js/theme.js"></script>
 <script src="js/platform-android.js"></script>

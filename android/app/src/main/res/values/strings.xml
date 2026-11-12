@@ -4,4 +4,7 @@
     <string name="title_activity_main">LocalCord</string>
     <string name="package_name">com.localcord.app</string>
     <string name="custom_url_scheme">com.localcord.app</string>
+    <string name="voice_channel_name">Voice channel</string>
+    <string name="voice_channel_desc">Shown while you are in a LocalCord voice channel</string>
+    <string name="voice_connected">Voice connected</string>
 </resources>

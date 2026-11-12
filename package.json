@@ -1,7 +1,7 @@
 {
   "name": "localcord",
   "productName": "LocalCord",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "description": "Голос, чат и демонстрация экрана для локальной сети и Radmin VPN — Windows и Android",
   "author": "Zubakamaraka",
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -10,10 +10,10 @@
     "start": "electron .",
     "dev": "electron . --devtools",
     "server": "node src/server/standalone.js",
-    "test": "node test/server.test.js",
+    "test": "node test/server.test.js && node test/i18n.test.js",
     "dist": "electron-builder --win nsis --publish never",
     "dist:dir": "electron-builder --win dir --publish never",
-    "test:e2e": "node test/e2e.js",
+    "test:e2e": "node test/e2e.js && node test/e2e-features.js",
     "android:sync": "cap sync android",
     "android:open": "cap open android"
   },
@@ -75,8 +75,8 @@
       "uninstallerSidebar": "build/uninstallerSidebar.bmp",
       "installerHeader": "build/installerHeader.bmp",
       "installerLanguages": [
-        "ru_RU",
-        "en_US"
+        "en_US",
+        "ru_RU"
       ],
       "language": "1049"
     },

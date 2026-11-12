@@ -842,3 +842,116 @@ html.mobile body { user-select: none; -webkit-tap-highlight-color: transparent; 
   .tile .t-av { transform: scale(.62); }
   .settings-close .icon-btn { background: var(--bg-side); }
 }
+
+/* =============================================================
+   2.2: язык, свой сервер в списке, оформление профиля, обновления
+   ============================================================= */
+
+/* ----- выбор языка на первом экране ----- */
+.lang-pick { display: flex; gap: 4px; align-self: flex-end; margin: -8px -8px -12px 0; padding: 3px; border-radius: 8px; background: var(--bg-side); }
+.lang-pick button { padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.lang-pick button:hover { color: var(--text-strong); }
+.lang-pick button.on { background: var(--accent); color: var(--on-accent); }
+
+/* ----- строки серверов ----- */
+.server-row { position: relative; }
+.server-row.own { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--green) 55%, transparent); }
+.server-row.own .srv-ic { background: var(--green); }
+.server-row.own .srv-sub { font-family: var(--font); }
+.srv-meta .tag { white-space: nowrap; font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: var(--bg-input); color: var(--text-muted); }
+.srv-meta .tag.own { background: rgba(35, 165, 90, .2); color: var(--green-text); }
+.server-row .srv-x { opacity: 0; flex-shrink: 0; }
+.server-row:hover .srv-x, .server-row .srv-x:focus-visible { opacity: 1; }
+.server-row .srv-x:hover { color: var(--red-text); background: var(--bg-hover); }
+.rail-item.off { opacity: .55; }
+.rail-item.off:hover { opacity: 1; }
+
+/* ----- поле пароля с «глазом» ----- */
+.pass-box { position: relative; display: flex; }
+.pass-box .input { flex: 1; min-width: 0; padding-right: 42px; }
+.pass-box .icon-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); }
+
+/* ----- шрифты имён (SIL Open Font License, лежат рядом с программой) ----- */
+@font-face { font-family: "LC Comfortaa"; font-weight: 700; font-display: swap; src: url("vendor/fonts/comfortaa-cyrillic-700-normal.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "LC Comfortaa"; font-weight: 700; font-display: swap; src: url("vendor/fonts/comfortaa-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
+@font-face { font-family: "LC Russo"; font-weight: 400; font-display: swap; src: url("vendor/fonts/russo-one-cyrillic-400-normal.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "LC Russo"; font-weight: 400; font-display: swap; src: url("vendor/fonts/russo-one-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
+@font-face { font-family: "LC Caveat"; font-weight: 700; font-display: swap; src: url("vendor/fonts/caveat-cyrillic-700-normal.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "LC Caveat"; font-weight: 700; font-display: swap; src: url("vendor/fonts/caveat-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
+@font-face { font-family: "LC Lobster"; font-weight: 400; font-display: swap; src: url("vendor/fonts/lobster-cyrillic-400-normal.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "LC Lobster"; font-weight: 400; font-display: swap; src: url("vendor/fonts/lobster-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
+@font-face { font-family: "LC Pixel"; font-weight: 400; font-display: swap; src: url("vendor/fonts/press-start-2p-cyrillic-400-normal.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "LC Pixel"; font-weight: 400; font-display: swap; src: url("vendor/fonts/press-start-2p-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
+.nf-serif { font-family: Georgia, "Times New Roman", serif; }
+.nf-mono { font-family: var(--mono); letter-spacing: -.01em; }
+.nf-comfortaa { font-family: "LC Comfortaa", var(--font); font-weight: 700 !important; }
+.nf-russo { font-family: "LC Russo", var(--font); font-weight: 400 !important; }
+.nf-caveat { font-family: "LC Caveat", var(--font); font-weight: 700 !important; font-size: 1.22em; line-height: 1; }
+.nf-lobster { font-family: "LC Lobster", var(--font); font-weight: 400 !important; font-size: 1.08em; }
+.nf-pixel { font-family: "LC Pixel", var(--mono); font-weight: 400 !important; font-size: .68em; letter-spacing: -.02em; }
+
+/* ----- рамки аватаров: кольцо снаружи, поверх него — индикатор «говорит» ----- */
+.av[data-fr]::after {
+  content: ""; position: absolute; inset: calc(-1 * var(--ring, 3px)); border-radius: 50%; padding: var(--ring, 3px);
+  background: var(--fr, var(--accent)); pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.av[data-fr] .st { z-index: 1; }
+.av[data-fr].speaking { box-shadow: 0 0 0 calc(var(--ring, 3px) + 2px) var(--green); }
+.vm .av[data-fr].speaking { box-shadow: 0 0 0 calc(var(--ring, 3px) + 2px) var(--green); }
+.av[data-fr="accent"] { --fr: var(--accent); }
+.av[data-fr="gold"] { --fr: linear-gradient(135deg, #fff1b8, #f7c948 30%, #b7791f 55%, #ffe58a 80%, #c9952b); }
+.av[data-fr="emerald"] { --fr: linear-gradient(135deg, #a7f3d0, #34d399 35%, #047857 65%, #6ee7b7); }
+.av[data-fr="ice"] { --fr: linear-gradient(135deg, #f0fbff, #7dd3fc 40%, #38bdf8 60%, #e0f2fe); }
+.av[data-fr="neon"] { --fr: linear-gradient(135deg, #ff2bd6, #7c3aed 50%, #00e5ff); }
+.av[data-fr="neon"]::after { filter: drop-shadow(0 0 4px #c026d3); }
+.av[data-fr="fire"] { --fr: conic-gradient(from 180deg, #ffea00, #ff9100, #ff3d00, #ff9100, #ffea00); }
+.av[data-fr="galaxy"] { --fr: conic-gradient(#6d28d9, #db2777, #2563eb, #0ea5e9, #6d28d9); }
+.av[data-fr="rainbow"] { --fr: conic-gradient(#ff4d4d, #ffb84d, #f9f871, #4dff88, #4dd2ff, #7a5cff, #ff4dd2, #ff4d4d); }
+.av[data-fr="fire"]::after, .av[data-fr="galaxy"]::after, .av[data-fr="rainbow"]::after { animation: fr-spin 6s linear infinite; }
+.av[data-fr="fire"]::after { animation-duration: 3s; }
+@keyframes fr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .av[data-fr]::after { animation: none !important; } }
+
+/* ----- настройки профиля: выбор рамки и шрифта ----- */
+.frame-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.frame-opt { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 6px 10px; border-radius: 10px; background: var(--bg-rail); border: 2px solid transparent; transition: border-color .12s; }
+.frame-opt span { font-size: 12.5px; color: var(--text-muted); font-weight: 600; }
+.frame-opt:hover { border-color: var(--btn-hover); }
+.frame-opt.on { border-color: var(--accent); }
+.frame-opt.on span { color: var(--text-strong); }
+.font-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.font-opt { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg-rail); border: 2px solid transparent; text-align: left; min-width: 0; transition: border-color .12s; }
+.font-opt b { font-size: 16px; color: var(--text-strong); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 24px; line-height: 24px; }
+.font-opt span { font-size: 12px; color: var(--text-muted); }
+.font-opt:hover { border-color: var(--btn-hover); }
+.font-opt.on { border-color: var(--accent); }
+.profile-preview { background: var(--bg-main); border-radius: 8px; padding: 2px 0 14px; }
+.profile-preview .msg.head { margin-top: 8px; }
+
+/* ----- мой сервер: опасная зона ----- */
+.sbox.danger-zone { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent); }
+.sbox.danger-zone h4 { color: var(--red-text); }
+
+/* ----- обновления ----- */
+.rel-list { display: flex; flex-direction: column; gap: 6px; }
+.rel { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; background: var(--bg-rail); }
+.rel-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rel-main b { color: var(--text-strong); font-weight: 600; }
+.rel-main span { font-size: 13px; color: var(--text-muted); }
+.rel .btn { min-height: 30px; font-size: 13px; }
+.modal .progress, .settings .progress { width: 100%; background: var(--bg-input); }
+.modal .progress > i, .settings .progress > i { background: var(--accent); }
+
+/* ----- трансляция: что реально уходит зрителям ----- */
+.tile .t-stats { position: absolute; top: 8px; right: 8px; z-index: 2; max-width: calc(100% - 90px); padding: 3px 8px; border-radius: 6px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .t-stats.warn { background: rgba(180, 99, 14, .92); }
+#voice-view.has-stage .tile .t-stats { display: none; }
+
+@media (max-width: 760px) {
+  .lang-pick { margin: -4px -4px -8px 0; }
+  .server-row .srv-x { opacity: 1; }
+  .frame-grid { grid-template-columns: repeat(3, 1fr); }
+  .font-grid { grid-template-columns: 1fr 1fr; }
+}

@@ -14,6 +14,8 @@ const DEFAULTS = () => ({
     username: '',
     color: '#5865f2',
     avatar: null,
+    frame: null,            // рамка аватара
+    font: null,             // шрифт имени
   },
   mode: null,               // 'host' | 'client'
   lastServer: null,         // 'ip:port'
@@ -22,6 +24,7 @@ const DEFAULTS = () => ({
     name: 'Сервер LocalCord',
     port: 3000,
     password: '',
+    enabled: null,           // сервер создан и не остановлен (null — определить по mode, как до 2.2)
     autoStart: true,
     maxFileMB: 4096,
   },
@@ -33,6 +36,7 @@ const DEFAULTS = () => ({
     autoGainControl: true,
     quality: '1080p30',
     shareAudio: false,
+    hwEncode: true,          // трансляция через видеокарту (H.264), если она это умеет
     volumes: {},             // clientId -> 0..2
     localMutes: {},          // clientId -> true
   },
@@ -41,6 +45,9 @@ const DEFAULTS = () => ({
     startWithWindows: false,
     notifications: true,
     sounds: true,
+    lang: null,              // 'ru' | 'en' | null — как в системе
+    checkUpdates: true,      // раз в день спрашивать GitHub о новой версии
+    lastUpdateCheck: 0,
   },
   ui: {
     showMembers: true,

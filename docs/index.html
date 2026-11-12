@@ -8,6 +8,9 @@
 <meta name="theme-color" content="#1e1f22">
 <link rel="icon" href="img/icon.png">
 <link rel="canonical" href="https://zubakamaraka.github.io/Localcord/">
+<link rel="alternate" hreflang="ru" href="https://zubakamaraka.github.io/Localcord/">
+<link rel="alternate" hreflang="en" href="https://zubakamaraka.github.io/Localcord/en/">
+<link rel="alternate" hreflang="x-default" href="https://zubakamaraka.github.io/Localcord/en/">
 
 <!-- превью ссылки в Telegram, VK, Discord, WhatsApp -->
 <meta property="og:type" content="website">
@@ -49,6 +52,11 @@
   header.top nav { margin-left: auto; display: flex; gap: 18px; font-size: 15px; }
   header.top nav a { color: var(--muted); text-decoration: none; }
   header.top nav a:hover { color: var(--strong); }
+  header.top .lang { display: flex; gap: 2px; margin-left: 18px; padding: 3px; border-radius: 8px; background: var(--bg2); font-size: 13px; font-weight: 700; }
+  header.top .lang b, header.top .lang a { padding: 3px 9px; border-radius: 6px; text-decoration: none; }
+  header.top .lang b { background: var(--accent); color: #fff; font-size: 13px; }
+  header.top .lang a { color: var(--muted); }
+  header.top .lang a:hover { color: var(--strong); }
 
   .hero { display: grid; grid-template-columns: 1fr 1.15fr; gap: 48px; align-items: center; padding: 36px 0 64px; }
   .hero h1 { font-size: clamp(36px, 5vw, 58px); line-height: 1.05; color: var(--strong); letter-spacing: -.02em; }
@@ -135,6 +143,7 @@
       <a href="#faq">Вопросы</a>
       <a href="https://github.com/Zubakamaraka/Localcord">GitHub</a>
     </nav>
+    <span class="lang"><b>RU</b><a href="en/" hreflang="en" lang="en">EN</a></span>
   </header>
 
   <div class="hero">
@@ -172,19 +181,19 @@
   <section id="features">
     <h2>Что внутри</h2>
     <div class="features">
-      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg></div><div><b>Голосовые каналы</b><span>Шумо- и эхоподавление, «кто говорит», громкость каждого отдельно</span></div></div>
-      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div><b>Трансляция экрана</b><span>До 4K · 60 к/с, со звуком, во весь экран и в мини-окне</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg></div><div><b>Голосовые каналы</b><span>Шумо- и эхоподавление, «кто говорит», громкость каждого отдельно, проверка «как меня слышат»</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><div><b>Трансляция экрана</b><span>До 4K · 60 к/с, со стереозвуком, во весь экран и в мини-окне</span></div></div>
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div><div><b>Файлы любого размера</b><span>Перетащите в окно: картинки, видео, музыка, архивы на гигабайты</span></div></div>
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><b>Только ваша сеть</b><span>Без внешних серверов и аккаунтов. Голос шифруется, есть пароль на сервер</span></div></div>
-      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></div><div><b>Windows и Android</b><span>С телефона — чат, голос и просмотр трансляций</span></div></div>
-      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8"/></svg></div><div><b>Обновления от хоста</b><span>Новую версию раздаёт хост — интернет для обновления не нужен</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></div><div><b>Windows и Android</b><span>С телефона — чат, голос и просмотр трансляций. Русский и английский язык</span></div></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8"/></svg></div><div><b>Обновления в один клик</b><span>Программа сама находит новую версию, умеет вернуться на прошлую. Без интернета обновление раздаёт хост</span></div></div>
     </div>
   </section>
 
   <section>
     <h2>Как выглядит</h2>
     <div class="gallery">
-      <figure><img src="img/themes.png" alt="Семь тем оформления" loading="lazy"><figcaption>7 тем оформления, свой цвет акцента и размер интерфейса</figcaption></figure>
+      <figure><img src="img/themes.png" alt="Семь тем оформления" loading="lazy"><figcaption>7 тем оформления, свой цвет акцента, рамки аватаров, шрифты имён и GIF-аватары</figcaption></figure>
       <figure><img src="img/chat.png" alt="Чат с картинкой и файлом" loading="lazy"><figcaption>Картинки, видео и файлы прямо в чате</figcaption></figure>
     </div>
     <figure style="margin-top:16px"><img src="img/mobile.png" alt="LocalCord на телефоне" loading="lazy" style="width:100%;border-radius:12px;border:1px solid var(--line)"><figcaption style="font-size:14px;color:var(--muted);margin-top:8px">На телефоне: чат, каналы, голос, трансляция и мини-окно</figcaption></figure>
@@ -211,6 +220,8 @@
       <p>Radmin VPN есть только для Windows. Дома в одном Wi-Fi с хостом телефон находит сервер сам. Вне дома нужна VPN-сеть с приложением для Android (например ZeroTier или Tailscale), в которой есть и компьютер хоста — он может быть в Radmin и в такой сети одновременно.</p></details>
     <details><summary>Как поставить APK на Android?</summary>
       <p>Скачайте файл на телефон и откройте его. Android попросит разрешить установку из браузера или менеджера файлов — разрешите один раз. Новые версии ставятся поверх старой, профиль сохраняется.</p></details>
+    <details><summary>Как обновиться или вернуться на прошлую версию?</summary>
+      <p>«Настройки → Обновления»: кнопка «Проверить обновления» показывает последнюю версию, «Скачать и установить» ставит её поверх текущей — профиль, настройки и история сохраняются. Там же список прошлых версий с кнопкой «Вернуться». Раз в день программа проверяет новую версию сама (это можно выключить). На Android кнопка открывает загрузку APK.</p></details>
     <details><summary>Где хранятся сообщения и файлы?</summary>
       <p>Только на компьютере хоста. Голос и видео идут напрямую между участниками и всегда зашифрованы.</p></details>
   </section>
@@ -223,6 +234,8 @@
 </div>
 
 <script>
+  // Гостям не из русскоязычных стран сразу показываем английскую страницу (вернуться — ссылкой RU)
+  if (!/[?&]lang=ru\b/.test(location.search) && !/^(ru|uk|be|kk)/i.test(navigator.language || 'ru')) location.replace('en/' + location.hash);
   // Android-телефон — главной делаем кнопку APK
   if (/Android/i.test(navigator.userAgent)) {
     const w = document.getElementById('btn-win'), a = document.getElementById('btn-apk');

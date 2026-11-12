@@ -42,12 +42,14 @@ async function launch(name, settings) {
     onboarded: true, mode: 'host',
     profile: { clientId: 'e2e-host', username: 'Хост', color: '#6d5dfc' },
     host: { name: 'E2E', port: PORT, autoStart: true, password: '' },
+    app: { lang: 'ru', checkUpdates: false },
   });
   await host.page.waitForSelector('#app:not(.hidden)', { timeout: 20000 });
   ok('хост запустил встроенный сервер и вошёл');
 
   const friend = await launch('friend', {
     onboarded: true, profile: { clientId: 'e2e-friend', username: 'Друг', color: '#3ba55c' },
+    app: { lang: 'ru', checkUpdates: false },
   });
   await friend.page.click('#m-join');
   await friend.page.waitForSelector('#c-found .server-row', { timeout: 10000 });

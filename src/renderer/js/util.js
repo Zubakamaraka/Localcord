@@ -5,9 +5,9 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 function h(html) {
-  const t = document.createElement('template');
-  t.innerHTML = html.trim();
-  return t.content.firstElementChild;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html.trim();
+  return tpl.content.firstElementChild;
 }
 
 function esc(s) {
@@ -24,7 +24,35 @@ function safeColor(c) {
   return /^#[0-9a-f]{6}$/i.test(c || '') ? c : '#5865f2';
 }
 
-/** Аватар: картинка или цветной кружок с инициалами */
+// ---------- оформление профиля: рамки аватара и шрифты имени ----------
+// Идентификаторы уходят на сервер и к друзьям; незнакомый идентификатор просто не рисуется.
+const FRAMES = [
+  { id: '', name: N_('Без рамки') },
+  { id: 'accent', name: N_('Акцент') },
+  { id: 'gold', name: N_('Золото') },
+  { id: 'emerald', name: N_('Изумруд') },
+  { id: 'ice', name: N_('Лёд') },
+  { id: 'neon', name: N_('Неон') },
+  { id: 'fire', name: N_('Огонь') },
+  { id: 'galaxy', name: N_('Галактика') },
+  { id: 'rainbow', name: N_('Радуга') },
+];
+const NAME_FONTS = [
+  { id: '', name: N_('Обычный') },
+  { id: 'serif', name: N_('Классика') },
+  { id: 'mono', name: N_('Терминал') },
+  { id: 'comfortaa', name: N_('Округлый') },
+  { id: 'russo', name: N_('Техно') },
+  { id: 'caveat', name: N_('От руки') },
+  { id: 'lobster', name: N_('Вывеска') },
+  { id: 'pixel', name: N_('Пиксели') },
+];
+const frameId = p => (p && FRAMES.some(f => f.id && f.id === p.frame) ? p.frame : '');
+const fontClass = p => (p && NAME_FONTS.some(f => f.id && f.id === p.font) ? `nf nf-${p.font}` : '');
+/** Имя участника его шрифтом */
+const nameHtml = p => `<span class="${fontClass(p)}">${esc(p.username)}</span>`;
+
+/** Аватар: картинка или цветной кружок с инициалами, по желанию — с рамкой */
 function avatarHtml(p, size = 32, opts = {}) {
   p = p || {};
   const fs = Math.round(size * 0.38);
@@ -34,7 +62,9 @@ function avatarHtml(p, size = 32, opts = {}) {
   const bg = p.avatar ? 'transparent' : safeColor(p.color);
   const st = opts.status ? '<i class="st"></i>' : '';
   const data = opts.sid ? ` data-sid="${esc(opts.sid)}"` : '';
-  return `<div class="av ${opts.cls || ''}"${data} style="width:${size}px;height:${size}px;background:${bg};font-size:${fs}px">${inner}${st}</div>`;
+  const fr = frameId(p);
+  const ring = fr ? `;--ring:${Math.max(2, Math.round(size * 0.07))}px` : '';
+  return `<div class="av ${opts.cls || ''}"${data}${fr ? ` data-fr="${fr}"` : ''} style="width:${size}px;height:${size}px;background:${bg};font-size:${fs}px${ring}">${inner}${st}</div>`;
 }
 
 const pad = n => String(n).padStart(2, '0');
@@ -51,22 +81,22 @@ function sameDay(a, b) {
 
 function fmtDay(ts) {
   const now = Date.now();
-  if (sameDay(ts, now)) return 'Сегодня';
-  if (sameDay(ts, now - 86400000)) return 'Вчера';
-  return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  if (sameDay(ts, now)) return t('Сегодня');
+  if (sameDay(ts, now - 86400000)) return t('Вчера');
+  return new Date(ts).toLocaleDateString(I18N.locale(), { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function fmtStamp(ts) {
   const now = Date.now();
-  if (sameDay(ts, now)) return `Сегодня в ${fmtTime(ts)}`;
-  if (sameDay(ts, now - 86400000)) return `Вчера в ${fmtTime(ts)}`;
+  if (sameDay(ts, now)) return t('Сегодня в {time}', { time: fmtTime(ts) });
+  if (sameDay(ts, now - 86400000)) return t('Вчера в {time}', { time: fmtTime(ts) });
   const d = new Date(ts);
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${fmtTime(ts)}`;
 }
 
 function fmtBytes(n) {
   if (!Number.isFinite(n)) return '';
-  const u = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
+  const u = [t('Б'), t('КБ'), t('МБ'), t('ГБ'), t('ТБ')];
   let i = 0;
   while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
   return `${n.toFixed(i && n < 10 ? 1 : 0)} ${u[i]}`;
@@ -90,13 +120,13 @@ function cmpVersion(a, b) {
 }
 
 function debounce(fn, ms) {
-  let t;
-  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  let timer;
+  return (...a) => { clearTimeout(timer); timer = setTimeout(() => fn(...a), ms); };
 }
 
 async function copyText(text) {
-  try { await navigator.clipboard.writeText(text); toast('Скопировано', { type: 'ok', timeout: 1500 }); }
-  catch { toast('Не удалось скопировать', { type: 'err' }); }
+  try { await navigator.clipboard.writeText(text); toast(t('Скопировано'), { type: 'ok', timeout: 1500 }); }
+  catch { toast(t('Не удалось скопировать'), { type: 'err' }); }
 }
 
 // ---------- тосты ----------
@@ -167,7 +197,7 @@ function modal({ title, body, buttons = [], wide = false, onClose, closable = tr
   return api;
 }
 
-function confirmDialog(title, text, { ok = 'Подтвердить', danger = false } = {}) {
+function confirmDialog(title, text, { ok = t('Подтвердить'), danger = false } = {}) {
   return new Promise(resolve => {
     let result = false;
     const body = document.createElement('div');
@@ -175,7 +205,7 @@ function confirmDialog(title, text, { ok = 'Подтвердить', danger = fa
     modal({
       title, body,
       buttons: [
-        { label: 'Отмена', kind: 'ghost' },
+        { label: t('Отмена'), kind: 'ghost' },
         { label: ok, kind: danger ? 'danger' : 'primary', onClick: () => { result = true; } },
       ],
       onClose: () => resolve(result),
@@ -183,7 +213,7 @@ function confirmDialog(title, text, { ok = 'Подтвердить', danger = fa
   });
 }
 
-function promptDialog(title, label, value = '', { ok = 'Сохранить', placeholder = '' } = {}) {
+function promptDialog(title, label, value = '', { ok = t('Сохранить'), placeholder = '' } = {}) {
   return new Promise(resolve => {
     let result = null;
     const body = h(`<div class="field"><label></label><input class="input" maxlength="40"></div>`);
@@ -194,7 +224,7 @@ function promptDialog(title, label, value = '', { ok = 'Сохранить', pla
     const m = modal({
       title, body,
       buttons: [
-        { label: 'Отмена', kind: 'ghost' },
+        { label: t('Отмена'), kind: 'ghost' },
         { label: ok, kind: 'primary', onClick: () => { result = inp.value.trim() || null; } },
       ],
       onClose: () => resolve(result),
@@ -244,25 +274,31 @@ const Sounds = (() => {
       try {
         ctx = ctx || new AudioContext();
         const now = ctx.currentTime;
-        for (const [f, t] of tones[name] || []) {
+        for (const [f, at] of tones[name] || []) {
           const o = ctx.createOscillator();
           const g = ctx.createGain();
           o.type = 'sine';
           o.frequency.value = f;
-          g.gain.setValueAtTime(0.0001, now + t);
-          g.gain.exponentialRampToValueAtTime(0.12, now + t + 0.01);
-          g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.16);
+          g.gain.setValueAtTime(0.0001, now + at);
+          g.gain.exponentialRampToValueAtTime(0.12, now + at + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.16);
           o.connect(g).connect(ctx.destination);
-          o.start(now + t);
-          o.stop(now + t + 0.18);
+          o.start(now + at);
+          o.stop(now + at + 0.18);
         }
       } catch { /* без звука */ }
     },
   };
 })();
 
-/** Картинка → квадратный аватар 128×128 (webp) */
+const AVATAR_GIF_MAX = 480 * 1024; // байт: анимированный аватар должен пролезать в один пакет профиля
+
+/** Картинка → квадратный аватар 128×128. GIF остаётся анимированным, остальное сохраняется как webp */
 async function imageToAvatar(file) {
+  if (file.type === 'image/gif') {
+    const gif = await gifToAvatar(file).catch(() => null);
+    if (gif) return gif;
+  }
   const bmp = await createImageBitmap(file);
   const s = Math.min(bmp.width, bmp.height);
   const c = document.createElement('canvas');
@@ -270,6 +306,56 @@ async function imageToAvatar(file) {
   c.getContext('2d').drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 128, 128);
   bmp.close();
   return c.toDataURL('image/webp', 0.85);
+}
+
+/**
+ * Анимированный GIF любого размера → маленький квадратный GIF для аватара.
+ * Кадры читает встроенный декодер Chromium, собирает обратно библиотека gifenc.
+ * Если получается слишком тяжело — уменьшаем сторону и число кадров. null — не анимация или не вышло.
+ */
+async function gifToAvatar(file) {
+  if (!('ImageDecoder' in window) || !window.gifenc) return null;
+  const dec = new ImageDecoder({ data: await file.arrayBuffer(), type: 'image/gif' });
+  try {
+    await dec.tracks.ready;
+    const track = dec.tracks.selectedTrack;
+    const count = track ? track.frameCount : 0;
+    if (!track || !track.animated || count < 2) return null;
+    const { GIFEncoder, quantize, applyPalette } = window.gifenc;
+    for (const [size, maxFrames] of [[128, 60], [112, 48], [96, 40], [80, 30], [64, 24]]) {
+      const step = Math.ceil(count / maxFrames);
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      const enc = GIFEncoder();
+      for (let i = 0; i < count; i += step) {
+        const { image } = await dec.decode({ frameIndex: i });
+        const w = image.displayWidth, hh = image.displayHeight, s = Math.min(w, hh);
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(image, (w - s) / 2, (hh - s) / 2, s, s, 0, 0, size, size);
+        const delay = Math.max(20, Math.round((image.duration || 100000) / 1000) * step);
+        image.close();
+        const { data } = ctx.getImageData(0, 0, size, size);
+        const palette = quantize(data, 256, { format: 'rgba4444', oneBitAlpha: true });
+        const index = applyPalette(data, palette, 'rgba4444');
+        const ti = palette.findIndex(col => col[3] === 0);
+        enc.writeFrame(index, size, size, { palette, delay, transparent: ti >= 0, transparentIndex: Math.max(0, ti), dispose: ti >= 0 ? 2 : 0 });
+      }
+      enc.finish();
+      const bytes = enc.bytes();
+      if (bytes.length <= AVATAR_GIF_MAX) {
+        return await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result);
+          fr.onerror = reject;
+          fr.readAsDataURL(new Blob([bytes], { type: 'image/gif' }));
+        });
+      }
+    }
+    return null;
+  } finally {
+    try { dec.close(); } catch { /* ignore */ }
+  }
 }
 
 function pickFile(accept) {
@@ -280,6 +366,18 @@ function pickFile(accept) {
     inp.onchange = () => resolve(inp.files[0] || null);
     inp.click();
   });
+}
+
+/** Один сервер — одна строка: ответы с разных адресов одного сервера склеиваются по его id */
+function dedupeServers(list) {
+  const seen = new Map();
+  for (const s of list || []) {
+    const key = s.id ? `id:${s.id}` : `addr:${s.address}`;
+    const cur = seen.get(key);
+    if (!cur) seen.set(key, { ...s, addresses: s.addresses || [s.address] });
+    else if (!cur.addresses.includes(s.address)) cur.addresses.push(s.address);
+  }
+  return [...seen.values()];
 }
 
 function normalizeAddress(raw) {

@@ -9,7 +9,8 @@ const http = require('http');
 const crypto = require('crypto');
 const { io } = require('socket.io-client');
 const { createServer } = require('../src/server/server');
-const { discover, startResponder, localAddresses } = require('../src/server/discovery');
+const { discover, startResponder, mergeReplies, localAddresses } = require('../src/server/discovery');
+const { parseReleases, downloadRelease } = require('../src/main/updater');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lc-test-'));
 let passed = 0;
@@ -21,6 +22,7 @@ function client(port, host = '127.0.0.1') {
 const once = (s, ev) => new Promise(r => s.once(ev, r));
 const req = (s, ev, data) => new Promise(r => s.emit(ev, data, r));
 const wait = ms => new Promise(r => setTimeout(r, ms));
+const waitFor = (s, ev, pred) => new Promise(r => { const fn = d => { if (pred(d)) { s.off(ev, fn); r(d); } }; s.on(ev, fn); });
 
 function httpReq(method, url, { headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {
@@ -243,9 +245,96 @@ function httpReq(method, url, { headers = {}, body } = {}) {
   await wait(100);
   const found = await discover({ timeout: 800, port: 41299 });
   disc.close();
-  if (found.length) { assert.equal(found[0].port, srv2.port); step('автопоиск находит сервер в сети'); }
-  else console.log('  (автопоиск: широковещание недоступно в этой среде — пропущено)');
+  if (found.length) {
+    assert.equal(found[0].port, srv2.port);
+    assert.equal(found[0].id, srv2.id);
+    assert.equal(found.length, 1, 'один сервер — одна запись, даже если он ответил с нескольких адресов');
+    step('автопоиск находит сервер в сети и показывает его одной записью');
+  } else console.log('  (автопоиск: широковещание недоступно в этой среде — пропущено)');
   await srv2.close();
+
+  // ---------- один сервер на нескольких адресах ----------
+  const mine = [{ address: '192.168.0.5', netmask: '255.255.255.0', kind: 'lan' }, { address: '26.10.0.5', netmask: '255.0.0.0', kind: 'radmin' }];
+  const merged = mergeReplies([
+    { id: 'srv-A', name: 'A', port: 3000, host: '26.124.126.29', address: '26.124.126.29:3000' },
+    { id: 'srv-A', name: 'A', port: 3000, host: '192.168.0.230', address: '192.168.0.230:3000' },
+    { id: 'srv-A', name: 'A', port: 3000, host: '192.168.137.1', address: '192.168.137.1:3000' },
+    { id: 'srv-A', name: 'A', port: 3000, host: '127.0.0.1', address: '127.0.0.1:3000' },
+    { id: 'srv-B', name: 'B', port: 3000, host: '26.1.2.3', address: '26.1.2.3:3000' },
+    { name: 'старая версия без id', port: 3000, host: '192.168.0.77', address: '192.168.0.77:3000' },
+  ], mine);
+  assert.equal(merged.length, 3);
+  const mA = merged.find(x => x.id === 'srv-A');
+  assert.equal(mA.address, '192.168.0.230:3000', 'для подключения выбирается адрес своей локальной сети');
+  assert.equal(mA.addresses.length, 4);
+  step('четыре адреса одного сервера склеиваются в одну запись с лучшим адресом');
+
+  // ---------- владелец: секрет вместо пароля, права хоста по любому адресу ----------
+  const srv4 = await createServer({ port: 0, dataDir: path.join(tmp, 'd4'), password: 'old', adminKey: 'owner-secret', lang: 'en', log: () => {} });
+  const meta4 = JSON.parse(fs.readFileSync(path.join(tmp, 'd4', 'server.json'), 'utf8'));
+  assert.equal(meta4.id, srv4.id); assert.ok(srv4.id.length >= 12);
+  assert.equal(JSON.parse((await httpReq('GET', `http://127.0.0.1:${srv4.port}/info`)).body).id, srv4.id);
+  const o1 = client(srv4.port, lanIp || '127.0.0.1');
+  await once(o1, 'connect');
+  const jo1 = await req(o1, 'join', { username: 'Owner', clientId: 'own', adminKey: 'owner-secret', password: 'совсем не тот' });
+  assert.equal(jo1.ok, true); assert.equal(jo1.me.isHost, true);
+  assert.equal(jo1.server.id, srv4.id);
+  assert.ok(jo1.channels.some(ch => ch.name === 'General voice'), 'каналы нового сервера — на языке владельца');
+  const g1 = client(srv4.port);
+  await once(g1, 'connect');
+  const jg1 = await req(g1, 'join', { username: 'Guest', clientId: 'guest', password: 'old' });
+  assert.equal(jg1.ok, true); assert.equal(jg1.me.isHost, false, 'с секретом владельца localhost сам по себе прав не даёт');
+  const g2 = client(srv4.port);
+  await once(g2, 'connect');
+  assert.equal((await req(g2, 'join', { username: 'X', adminKey: 'wrong', password: 'nope' })).error, 'bad-password');
+  step('владелец входит без пароля и с правами хоста по сетевому адресу; чужой секрет не подходит');
+
+  // смена пароля на работающем сервере
+  srv4.setOptions({ password: 'new' });
+  const g3 = client(srv4.port);
+  await once(g3, 'connect');
+  assert.equal((await req(g3, 'join', { username: 'Y', password: 'old' })).error, 'bad-password');
+  const g4 = client(srv4.port);
+  await once(g4, 'connect');
+  assert.equal((await req(g4, 'join', { username: 'Y', clientId: 'y', password: 'new' })).ok, true);
+  step('новый пароль действует сразу, без перезапуска сервера');
+
+  // оформление профиля
+  const gifData = 'data:image/gif;base64,' + crypto.randomBytes(300 * 1024).toString('base64');
+  const prof = waitFor(o1, 'profile', d => d.clientId === 'y' && !!d.profile.avatar);
+  g4.emit('profile-update', { username: 'Y', color: '#112233', avatar: gifData, frame: 'gold', font: 'pixel' });
+  const pu = await prof;
+  assert.equal(pu.profile.frame, 'gold'); assert.equal(pu.profile.font, 'pixel'); assert.equal(pu.profile.avatar, gifData);
+  const prof2 = waitFor(o1, 'profile', d => d.clientId === 'y' && !d.profile.avatar);
+  g4.emit('profile-update', { username: 'Y', avatar: 'data:image/gif;base64,' + 'A'.repeat(800 * 1024), frame: '<img onerror=1>', font: 'x'.repeat(50) });
+  const pu2 = await prof2;
+  assert.equal(pu2.profile.avatar, null); assert.equal(pu2.profile.frame, undefined); assert.equal(pu2.profile.font, undefined);
+  step('рамка, шрифт и GIF-аватар сохраняются и рассылаются; мусор и слишком большой аватар отбрасываются');
+  o1.close(); g1.close(); g4.close();
+  await srv4.close();
+
+  // идентификатор сервера переживает перезапуск
+  const srv5 = await createServer({ port: 0, dataDir: path.join(tmp, 'd4'), log: () => {} });
+  assert.equal(srv5.id, srv4.id);
+  await srv5.close();
+  step('идентификатор сервера постоянный');
+
+  // ---------- обновления с GitHub ----------
+  const rels = parseReleases([
+    { tag_name: 'v2.2.0', published_at: '2026-11-11T10:00:00Z', body: 'notes', html_url: 'https://github.com/x/y/releases/tag/v2.2.0', assets: [
+      { name: 'LocalCord-Setup.exe', browser_download_url: 'https://github.com/x/y/a.exe', size: 5, digest: 'sha256:' + 'a'.repeat(64) },
+      { name: 'LocalCord-Setup-2.2.0.exe', browser_download_url: 'https://github.com/x/y/b.exe', size: 5, digest: 'sha256:' + 'B'.repeat(64) },
+      { name: 'LocalCord-2.2.0.apk', browser_download_url: 'https://github.com/x/y/b.apk', size: 7 }] },
+    { tag_name: 'v2.3.0-draft', draft: true, assets: [] },
+    { tag_name: 'nightly', assets: [] },
+    { tag_name: 'v2.1.3', assets: [{ name: 'LocalCord-Setup-2.1.3.exe', browser_download_url: 'https://github.com/x/y/c.exe', size: 9 }] },
+  ]);
+  assert.deepEqual(rels.map(r => r.version), ['2.2.0', '2.1.3']);
+  assert.equal(rels[0].exe.name, 'LocalCord-Setup-2.2.0.exe'); assert.equal(rels[0].exe.sha256, 'b'.repeat(64));
+  assert.equal(rels[0].apk.name, 'LocalCord-2.2.0.apk'); assert.equal(rels[1].exe.sha256, null);
+  await assert.rejects(downloadRelease({ version: '9.9.9', exe: { url: 'http://evil.example/LocalCord-Setup.exe', size: 1 } }, path.join(tmp, 'upd')), /bad-url/);
+  await assert.rejects(downloadRelease({ version: '9.9.9', exe: null }, path.join(tmp, 'upd')), /no-installer/);
+  step('список выпусков разбирается; установщик берётся только с github.com');
 
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`\nВсе проверки пройдены: ${passed}`);

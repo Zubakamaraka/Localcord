@@ -3,12 +3,43 @@
 
 const dbg = (...a) => { if (window.LC_DEBUG) console.log('DBG', ...a); };
 
+// keep: что беречь, когда компьютер или сеть не справляются — чёткость (кадров станет меньше)
+// или плавность (картинка станет мельче). Для 4K бережём чёткость: раньше берегли плавность,
+// и перегруженный кодировщик ужимал 4K до мутной картинки хуже 1080p.
 const QUALITY = {
-  '720p30': { label: '720p', sub: '30 к/с', w: 1280, h: 720, fps: 30, bitrate: 3_000_000 },
-  '1080p30': { label: '1080p', sub: '30 к/с', w: 1920, h: 1080, fps: 30, bitrate: 6_000_000 },
-  '1080p60': { label: '1080p', sub: '60 к/с', w: 1920, h: 1080, fps: 60, bitrate: 10_000_000 },
-  'source60': { label: 'Исходное', sub: 'до 4K · 60 к/с', w: 3840, h: 2160, fps: 60, bitrate: 16_000_000 },
+  '720p30': { label: '720p', sub: N_('30 к/с'), w: 1280, h: 720, fps: 30, bitrate: 4_000_000, keep: 'resolution' },
+  '1080p30': { label: '1080p', sub: N_('30 к/с'), w: 1920, h: 1080, fps: 30, bitrate: 8_000_000, keep: 'resolution' },
+  '1080p60': { label: '1080p', sub: N_('60 к/с'), w: 1920, h: 1080, fps: 60, bitrate: 12_000_000, keep: 'framerate' },
+  '1440p60': { label: '1440p', sub: N_('60 к/с'), w: 2560, h: 1440, fps: 60, bitrate: 20_000_000, keep: 'framerate', heavy: true },
+  'source60': { label: '4K', sub: N_('до 60 к/с'), w: 3840, h: 2160, fps: 60, bitrate: 35_000_000, keep: 'resolution', heavy: true },
 };
+
+/** H.264-кодеки первыми: их умеют сжимать видеокарты (NVENC, Quick Sync, AMF), остальные — следом как запасные */
+function h264First() {
+  try {
+    const send = RTCRtpSender.getCapabilities('video').codecs;
+    const recv = RTCRtpReceiver.getCapabilities('video').codecs;
+    const same = (a, b) => a.mimeType === b.mimeType && (a.sdpFmtpLine || '') === (b.sdpFmtpLine || '');
+    const list = recv.filter(c => send.some(x => same(x, c)));
+    const isH264 = c => /video\/h264/i.test(c.mimeType);
+    if (!list.some(isH264)) return null;
+    return [...list.filter(isH264), ...list.filter(c => !isH264(c))];
+  } catch { return null; }
+}
+
+/**
+ * Звук трансляции — в стерео. Кодек Opus по умолчанию сводит всё в моно (это режим для речи);
+ * пометка stereo=1 в описании соединения включает два канала. Микрофонную линию не трогаем.
+ */
+function stereoScreenAudio(sdp, micMid) {
+  const parts = String(sdp || '').split(/(?=^m=)/m);
+  return parts.map(sec => {
+    if (!sec.startsWith('m=audio')) return sec;
+    const mid = (/^a=mid:(\S+)/m.exec(sec) || [])[1];
+    if (mid === undefined || mid === String(micMid)) return sec;
+    return sec.replace(/^(a=fmtp:\d+ )([^\r\n]*useinbandfec=1[^\r\n]*)/gm, (m, head, params) => (/(^|;)\s*stereo=1/.test(params) ? m : `${head}${params};stereo=1`));
+  }).join('');
+}
 
 // ============================================================
 //  Одно соединение с другим участником («perfect negotiation»)
@@ -43,7 +74,10 @@ class Peer {
       dbg('negotiationneeded', this.member.username, pc.signalingState);
       try {
         this.makingOffer = true;
-        await pc.setLocalDescription();
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== 'stable') return; // пока готовили предложение, пришло встречное — ответим на него
+        offer.sdp = stereoScreenAudio(offer.sdp, this.micMid());
+        await pc.setLocalDescription(offer);
         Voice.signal(this.id, { description: pc.localDescription });
       } catch (e) {
         console.warn('negotiation', e);
@@ -68,11 +102,17 @@ class Peer {
     }
   }
 
+  /** Номер линии микрофона в описании соединения (первая аудиолиния, пока не узнали точнее) */
+  micMid() {
+    const tx = this.micTx || (this.micSender && this.pc.getTransceivers().find(x => x.sender === this.micSender));
+    return tx && tx.mid != null ? tx.mid : '0';
+  }
+
   /** Отвечающая сторона: подставляем свой микрофон в аудиолинию из предложения */
   attachMicToOffer() {
     if (this.micSender) return;
-    const tx = this.micTx || this.pc.getTransceivers().find(t => t.mid !== null && t.receiver.track.kind === 'audio'
-      && t !== this.screenTx.audio && !t.lcStreamId);
+    const tx = this.micTx || this.pc.getTransceivers().find(x => x.mid !== null && x.receiver.track.kind === 'audio'
+      && x !== this.screenTx.audio && !x.lcStreamId);
     if (!tx) return;
     this.micTx = this.micTx || tx;
     const mic = Voice.localStream && Voice.localStream.getAudioTracks()[0];
@@ -97,7 +137,7 @@ class Peer {
       this.remoteScreen = s;
       s.onremovetrack = e => {
         if (e.track.kind === 'video' && this.remoteScreen === s && Viewer.peerId === this.id && Viewer.stream === s) {
-          Viewer.close({ silent: true, notify: 'Трансляция завершена' });
+          Viewer.close({ silent: true, notify: t('Трансляция завершена') });
         }
       };
       if (Viewer.peerId === this.id) Viewer.setStream(s);
@@ -126,7 +166,9 @@ class Peer {
       await pc.setRemoteDescription(d);
       if (d.type === 'offer') {
         this.attachMicToOffer();
-        await pc.setLocalDescription();
+        const answer = await pc.createAnswer();
+        answer.sdp = stereoScreenAudio(answer.sdp, this.micMid());
+        await pc.setLocalDescription(answer);
         Voice.signal(this.id, { description: pc.localDescription });
       }
     } else if (data.candidate) {
@@ -151,10 +193,12 @@ class Peer {
         tx = this.pc.addTransceiver(track, {
           direction: 'sendonly',
           streams: [s.stream],
-          sendEncodings: kind === 'video' ? [{ maxBitrate: q.bitrate, maxFramerate: q.fps }] : [{ maxBitrate: 160_000 }],
+          sendEncodings: kind === 'video' ? [{ maxBitrate: q.bitrate, maxFramerate: q.fps }] : [{ maxBitrate: 192_000 }],
         });
         tx.lcStreamId = s.stream.id;
         this.screenTx[kind] = tx;
+        // трансляцию сжимает видеокарта, если она это умеет (проверено при запуске трансляции)
+        if (kind === 'video' && s.codecs) { try { tx.setCodecPreferences(s.codecs); } catch (e) { dbg('codec prefs', e.message); } }
       }
       if (kind === 'video') setTimeout(() => Voice.applyEncoding(tx.sender, q), 1200);
     }
@@ -275,17 +319,17 @@ const Viewer = {
     if (this.el) return;
     this.el = h(`<div id="viewer">
       <video autoplay playsinline></video>
-      <div class="v-wait"><span class="spinner big"></span><span>Подключение к трансляции…</span></div>
+      <div class="v-wait"><span class="spinner big"></span><span>${t('Подключение к трансляции…')}</span></div>
       <div class="v-top">
-        <div class="v-title"><span class="live-badge">В эфире</span><span class="v-name"></span></div>
+        <div class="v-title"><span class="live-badge">${t('В эфире')}</span><span class="v-name"></span></div>
         <span class="v-stats"></span>
       </div>
       <div class="v-bottom">
-        <label class="v-vol" title="Громкость трансляции">${icon('speaker', 18)}<input type="range" min="0" max="100" value="100"></label>
-        <button class="v-btn" data-a="mini" title="Свернуть в мини-окно">${icon('minimize', 18)}</button>
-        <button class="v-btn" data-a="pip" title="Поверх всех окон">${icon('pip', 18)}</button>
-        <button class="v-btn" data-a="full" title="Во весь экран (F, двойной щелчок)">${icon('maximize', 18)}</button>
-        <button class="v-btn close" data-a="close" title="Прекратить просмотр">${icon('x', 18)}</button>
+        <label class="v-vol" title="${t('Громкость трансляции')}">${icon('speaker', 18)}<input type="range" min="0" max="100" value="100"></label>
+        <button class="v-btn" data-a="mini" title="${t('Свернуть в мини-окно')}">${icon('minimize', 18)}</button>
+        <button class="v-btn" data-a="pip" title="${t('Поверх всех окон')}">${icon('pip', 18)}</button>
+        <button class="v-btn" data-a="full" title="${t('Во весь экран (F, двойной щелчок)')}">${icon('maximize', 18)}</button>
+        <button class="v-btn close" data-a="close" title="${t('Прекратить просмотр')}">${icon('x', 18)}</button>
       </div>
     </div>`);
     this.video = this.el.querySelector('video');
@@ -300,14 +344,18 @@ const Viewer = {
       if (a === 'close') this.close();
     };
     this.video.addEventListener('click', () => { if (this.mode === 'mini') this.expand(); });
-    document.addEventListener('fullscreenchange', () => {
-      const b = this.el.querySelector('[data-a="full"]');
-      const fs = document.fullscreenElement === this.el;
-      b.innerHTML = icon(fs ? 'minimize' : 'maximize', 18);
-      b.title = fs ? 'Выйти из полноэкранного режима (Esc)' : 'Во весь экран (F, двойной щелчок)';
-    });
+    if (!this.fsBound) {
+      this.fsBound = true;
+      document.addEventListener('fullscreenchange', () => {
+        if (!this.el) return;
+        const b = this.el.querySelector('[data-a="full"]');
+        const fs = document.fullscreenElement === this.el;
+        b.innerHTML = icon(fs ? 'minimize' : 'maximize', 18);
+        b.title = fs ? t('Выйти из полноэкранного режима (Esc)') : t('Во весь экран (F, двойной щелчок)');
+      });
+      this.makeDraggable();
+    }
     this.video.addEventListener('leavepictureinpicture', () => this.place());
-    this.makeDraggable();
   },
 
   makeDraggable() {
@@ -348,7 +396,7 @@ const Viewer = {
     clearTimeout(this.waitTimer);
     this.waitTimer = setTimeout(() => {
       if (this.peerId === peerId && !this.stream) {
-        toast('Не удалось подключиться к трансляции. Попробуйте ещё раз.', { type: 'err' });
+        toast(t('Не удалось подключиться к трансляции. Попробуйте ещё раз.'), { type: 'err' });
         this.close({ silent: true });
       }
     }, 15000);
@@ -376,7 +424,7 @@ const Viewer = {
     const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality().totalVideoFrames : 0;
     const fps = this.lastFrames ? q - this.lastFrames : 0;
     this.lastFrames = q;
-    this.el.querySelector('.v-stats').textContent = `${v.videoWidth}×${v.videoHeight}${fps ? ` · ${fps} к/с` : ''}`;
+    this.el.querySelector('.v-stats').textContent = `${v.videoWidth}×${v.videoHeight}${fps ? ` · ${fps} ${t('к/с')}` : ''}`;
   },
 
   get mode() {
@@ -409,7 +457,7 @@ const Viewer = {
     mp.classList.toggle('hidden', mode !== 'mini');
     const b = this.el.querySelector('[data-a="mini"]');
     b.innerHTML = icon(mode === 'mini' ? 'maximize' : 'minimize', 18);
-    b.title = mode === 'mini' ? 'Развернуть в окне канала' : 'Свернуть в мини-окно';
+    b.title = mode === 'mini' ? t('Развернуть в окне канала') : t('Свернуть в мини-окно');
   },
 
   toggleMini() {
@@ -443,7 +491,7 @@ const Viewer = {
     try {
       if (document.pictureInPictureElement) await document.exitPictureInPicture();
       else await this.video.requestPictureInPicture();
-    } catch { toast('Режим «поверх окон» недоступен', { type: 'err' }); }
+    } catch { toast(t('Режим «поверх окон» недоступен'), { type: 'err' }); }
   },
 
   close({ silent = false, notify = null } = {}) {
@@ -511,13 +559,13 @@ const Voice = {
       this.localStream = await this.getMic();
     } catch {
       this.localStream = null;
-      toast('Микрофон недоступен — вы в канале только слушаете. Проверьте настройки «Голос и видео».', { type: 'err', timeout: 6000 });
+      toast(t('Микрофон недоступен — вы в канале только слушаете. Проверьте настройки «Голос и видео».'), { type: 'err', timeout: 6000 });
     }
     this.applyMuteToTrack();
     const res = await Net.request('voice-join', { channel: chId, muted: this.muted || !this.localStream, deafened: this.deafened });
     if (!res || !res.ok) {
       this.stopMic();
-      toast('Не удалось войти в голосовой канал', { type: 'err' });
+      toast(t('Не удалось войти в голосовой канал'), { type: 'err' });
       return;
     }
     this.channel = chId;
@@ -549,7 +597,7 @@ const Voice = {
   },
 
   stopMic() {
-    if (this.localStream) this.localStream.getTracks().forEach(t => t.stop());
+    if (this.localStream) this.localStream.getTracks().forEach(tr => tr.stop());
     this.localStream = null;
   },
 
@@ -585,7 +633,7 @@ const Voice = {
 
   onUserLeft({ socketId, channel }) {
     if (channel !== this.channel) return;
-    if (Viewer.peerId === socketId) Viewer.close({ silent: true, notify: 'Трансляция завершена' });
+    if (Viewer.peerId === socketId) Viewer.close({ silent: true, notify: t('Трансляция завершена') });
     const p = this.peers.get(socketId);
     if (p) { p.close(); this.peers.delete(socketId); }
     if (this.screen) this.screen.viewers.delete(socketId);
@@ -627,12 +675,12 @@ const Voice = {
     const name = App.profileOf(m.clientId, m).username;
     Sounds.play('stream');
     if (!(UI.view === 'voice' && App.currentChannel === this.channel)) {
-      toast(`${name} начинает трансляцию`, { action: { label: 'Смотреть', onClick: () => { UI.selectChannel(this.channel); this.watch(socketId); } }, timeout: 7000 });
+      toast(t('{name} начинает трансляцию', { name }), { action: { label: t('Смотреть'), onClick: () => { UI.selectChannel(this.channel); this.watch(socketId); } }, timeout: 7000 });
     }
   },
 
   onStreamStopped({ socketId }) {
-    if (Viewer.peerId === socketId) Viewer.close({ silent: true, notify: 'Трансляция завершена' });
+    if (Viewer.peerId === socketId) Viewer.close({ silent: true, notify: t('Трансляция завершена') });
     const p = this.peers.get(socketId);
     if (p) p.remoteScreen = null;
   },
@@ -647,7 +695,7 @@ const Voice = {
       // трансляцию, которую смотрим, завершили
       if (Viewer.peerId) {
         const sm = ch.members.find(m => m.socketId === Viewer.peerId);
-        if (!sm || !sm.stream) Viewer.close({ silent: true, notify: 'Трансляция завершена' });
+        if (!sm || !sm.stream) Viewer.close({ silent: true, notify: t('Трансляция завершена') });
       }
     }
     UI.renderVoicePanel();
@@ -657,7 +705,7 @@ const Voice = {
   // ---------- микрофон / звук ----------
   applyMuteToTrack() {
     if (!this.localStream) return;
-    this.localStream.getAudioTracks().forEach(t => { t.enabled = !this.muted && !this.deafened; });
+    this.localStream.getAudioTracks().forEach(tr => { tr.enabled = !this.muted && !this.deafened; });
   },
 
   sendState() {
@@ -700,7 +748,7 @@ const Voice = {
   async applyInput() {
     if (!this.channel) return;
     let stream;
-    try { stream = await this.getMic(); } catch { toast('Не удалось открыть микрофон', { type: 'err' }); return; }
+    try { stream = await this.getMic(); } catch { toast(t('Не удалось открыть микрофон'), { type: 'err' }); return; }
     const track = stream.getAudioTracks()[0];
     for (const p of this.peers.values()) p.replaceMic(track, stream);
     this.stopMic();
@@ -719,7 +767,7 @@ const Voice = {
       if (!p.encodings || !p.encodings.length) p.encodings = [{}];
       p.encodings[0].maxBitrate = q.bitrate;
       p.encodings[0].maxFramerate = q.fps;
-      p.degradationPreference = q.fps >= 60 ? 'maintain-framerate' : 'maintain-resolution';
+      p.degradationPreference = q.keep === 'framerate' ? 'maintain-framerate' : 'maintain-resolution';
       await sender.setParameters(p);
     } catch {
       try {
@@ -753,30 +801,33 @@ const Voice = {
     let selected = screens[0]?.id || windows[0]?.id || null;
 
     const body = h(`<div style="display:flex;flex-direction:column;gap:16px">
-      <div class="tabs"><button data-t="screens">Экраны (${screens.length})</button><button data-t="windows">Окна приложений (${windows.length})</button></div>
+      <div class="tabs"><button data-t="screens">${t('Экраны ({n})', { n: screens.length })}</button><button data-t="windows">${t('Окна приложений ({n})', { n: windows.length })}</button></div>
       <div class="src-grid"></div>
-      <div class="field"><label>Качество трансляции</label><div class="seg" id="q-seg"></div>
-        <span class="hint">Для игр — 60 к/с, для текста и кода — 1080p 30 к/с. Чем выше качество, тем больше нагрузка на сеть и процессор.</span></div>
-      ${App.info.platform === 'win32' ? `<label class="check"><input type="checkbox" id="q-audio"><span class="check-text"><b>Транслировать звук компьютера</b><span>Звук игры или видео. Голоса собеседников тоже попадут в трансляцию — лучше использовать наушники.</span></span></label>` : ''}
+      <div class="field"><label>${t('Качество трансляции')}</label><div class="seg" id="q-seg"></div>
+        <span class="hint" id="q-hint"></span></div>
+      ${App.info.platform === 'win32' ? `<label class="check"><input type="checkbox" id="q-audio"><span class="check-text"><b>${t('Транслировать звук компьютера')}</b><span>${t('Звук игры или видео — в стерео и без обработки «под речь». LocalCord просит Windows не добавлять в трансляцию собственный звук (голоса друзей). Если зрители всё же слышат себя с эхом — ваша Windows этого не умеет: выключите галочку.')}</span></span></label>` : ''}
     </div>`);
     const grid = body.querySelector('.src-grid');
     const renderGrid = () => {
       $$('.tabs button', body).forEach(b => b.classList.toggle('on', b.dataset.t === tab));
       const list = tab === 'screens' ? screens : windows;
-      grid.innerHTML = list.length ? '' : '<div class="empty-note" style="grid-column:1/-1">Нет доступных источников</div>';
+      grid.innerHTML = list.length ? '' : `<div class="empty-note" style="grid-column:1/-1">${t('Нет доступных источников')}</div>`;
       for (const s of list) {
         const el = h(`<button class="src ${s.id === selected ? 'on' : ''}"><div class="src-th"></div><div class="src-name">${s.icon ? `<img src="${esc(s.icon)}">` : icon(s.isScreen ? 'screen' : 'popout', 16)}<span></span></div></button>`);
         if (s.thumbnail) el.querySelector('.src-th').style.backgroundImage = `url("${s.thumbnail}")`;
-        el.querySelector('span').textContent = s.isScreen ? (screens.length > 1 ? s.name : 'Весь экран') : s.name;
+        el.querySelector('span').textContent = s.isScreen ? (screens.length > 1 ? s.name : t('Весь экран')) : s.name;
         el.onclick = () => { selected = s.id; renderGrid(); };
         el.ondblclick = () => { selected = s.id; go(); };
         grid.appendChild(el);
       }
     };
-    body.querySelector('.tabs').onclick = e => { const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; renderGrid(); } };
+    body.querySelector('.tabs').onclick = e => { const b = e.target.closest('[data-t]'); if (b) { tab = b.dataset.t; renderGrid(); } };
     const seg = body.querySelector('#q-seg');
     const renderSeg = () => {
-      seg.innerHTML = Object.entries(QUALITY).map(([k, q]) => `<button data-q="${k}" class="${k === quality ? 'on' : ''}">${q.label} <span style="font-weight:400;opacity:.75">${q.sub}</span></button>`).join('');
+      seg.innerHTML = Object.entries(QUALITY).map(([k, q]) => `<button data-q="${k}" class="${k === quality ? 'on' : ''}">${q.label} <span style="font-weight:400;opacity:.75">${t(q.sub)}</span></button>`).join('');
+      body.querySelector('#q-hint').textContent = QUALITY[quality].heavy
+        ? t('1440p и 4K — тяжёлые режимы: нужна видеокарта с аппаратным кодированием и быстрая сеть. Если картинка у зрителей мутная или дёргается — выберите 1080p: он выглядит лучше, чем 4K, который не успевает сжиматься.')
+        : t('Для игр — 60 к/с, для текста и кода — 1080p 30 к/с. Чем выше качество, тем больше нагрузка на сеть и процессор.');
     };
     seg.onclick = e => { const b = e.target.closest('[data-q]'); if (b) { quality = b.dataset.q; renderSeg(); } };
     const audioBox = body.querySelector('#q-audio');
@@ -792,14 +843,27 @@ const Voice = {
       this.startShare({ id: selected, quality, audio: shareAudio });
     };
     m = modal({
-      title: 'Демонстрация экрана',
+      title: t('Демонстрация экрана'),
       body,
       wide: true,
       buttons: [
-        { label: 'Отмена', kind: 'ghost' },
-        { label: 'Начать трансляцию', kind: 'primary', onClick: () => { go(); return false; } },
+        { label: t('Отмена'), kind: 'ghost' },
+        { label: t('Начать трансляцию'), kind: 'primary', onClick: () => { go(); return false; } },
       ],
     });
+  },
+
+  /** Умеет ли видеокарта сжимать H.264 такого размера (иначе H.264 пришлось бы считать процессору — это хуже VP8) */
+  async hwH264(w, hh, q) {
+    if (window.LC_FORCE_H264) return true;
+    if (App.settings.voice.hwEncode === false) return false;
+    try {
+      const info = await navigator.mediaCapabilities.encodingInfo({
+        type: 'webrtc',
+        video: { contentType: 'video/H264', width: w, height: hh, bitrate: q.bitrate, framerate: q.fps },
+      });
+      return !!(info.supported && info.powerEfficient);
+    } catch { return false; }
   },
 
   async startShare({ id, quality, audio }) {
@@ -809,35 +873,98 @@ const Voice = {
       if (id) await App.api.screen.select({ id, audio });
       stream = await navigator.mediaDevices.getDisplayMedia({
         video: { width: { max: q.w }, height: { max: q.h }, frameRate: { ideal: q.fps, max: q.fps } },
-        audio: !!audio,
+        // Звук компьютера передаём как есть: без «улучшений» для речи, от которых музыка и игры звучат глухо.
+        // restrictOwnAudio — не захватывать звук самого LocalCord: иначе голоса друзей уходят в трансляцию
+        // и зрители слышат всё дважды, с эхом «как из бочки».
+        audio: audio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
       });
     } catch (e) {
-      if (e && e.name !== 'NotAllowedError') toast('Не удалось начать трансляцию: ' + (e.message || e), { type: 'err' });
+      if (e && e.name !== 'NotAllowedError') toast(t('Не удалось начать трансляцию: {error}', { error: e.message || e }), { type: 'err' });
       return;
     }
-    if (!this.channel) { stream.getTracks().forEach(t => t.stop()); return; }
+    if (!this.channel) { stream.getTracks().forEach(tr => tr.stop()); return; }
     const vt = stream.getVideoTracks()[0];
+    const at = stream.getAudioTracks()[0];
+    let size = { w: q.w, h: q.h };
     if (vt) {
-      vt.contentHint = q.fps >= 60 ? 'motion' : 'detail';
+      vt.contentHint = q.keep === 'framerate' ? 'motion' : 'detail';
       vt.addEventListener('ended', () => this.stopShare());
+      const st = vt.getSettings ? vt.getSettings() : {};
+      if (st.width && st.height) size = { w: st.width, h: st.height };
     }
-    this.screen = { stream, quality, audio: stream.getAudioTracks().length > 0, viewers: new Set() };
+    if (at) at.contentHint = 'music';
+    const hw = vt ? await this.hwH264(size.w, size.h, q) : false;
+    if (!this.channel) { stream.getTracks().forEach(tr => tr.stop()); return; }
+    this.screen = {
+      stream, quality, audio: !!at, viewers: new Set(),
+      codecs: hw ? h264First() : null,
+      ownAudioExcluded: !!(at && at.getSettings && at.getSettings().restrictOwnAudio),
+      stats: null,
+    };
     Net.emit('stream-start', { streamId: stream.id, quality, audio: this.screen.audio });
     Sounds.play('stream');
-    toast('Трансляция началась. Друзья увидят её, нажав «Смотреть».', { type: 'ok' });
+    toast(t('Трансляция началась. Друзья увидят её, нажав «Смотреть».'), { type: 'ok' });
+    if (q.heavy && !hw && size.h > 1200) {
+      toast(t('Видеокарта не берётся сжимать такое видео, поэтому этим займётся процессор. Если у зрителей мутно или рывками — выберите 1080p.'), { timeout: 9000 });
+    }
+    clearInterval(this.statsTimer);
+    this.statsTimer = setInterval(() => this.updateShareStats(), 2000);
     UI.renderVoicePanel();
     this.renderVoiceView();
+  },
+
+  /** Что реально уходит зрителям: размер, кадры, кодек и что ограничивает качество */
+  async updateShareStats() {
+    const s = this.screen;
+    if (!s) return;
+    let out = null;
+    for (const sid of s.viewers) {
+      const tx = this.peers.get(sid)?.screenTx.video;
+      if (!tx || !tx.sender.track) continue;
+      try {
+        const report = await tx.sender.getStats();
+        for (const r of report.values()) {
+          if (r.type !== 'outbound-rtp' || r.kind !== 'video' || !r.frameWidth) continue;
+          const codec = report.get(r.codecId);
+          out = {
+            w: r.frameWidth, h: r.frameHeight, fps: Math.round(r.framesPerSecond || 0),
+            codec: codec ? codec.mimeType.replace(/^video\//i, '') : '',
+            hw: r.powerEfficientEncoder === true,
+            limit: r.qualityLimitationReason || 'none',
+          };
+        }
+      } catch { /* ignore */ }
+      if (out) break;
+    }
+    if (this.screen !== s) return;
+    s.stats = out;
+    const tile = this.tiles.get(App.me?.id);
+    if (tile) this.updateShareBadge(tile);
+  },
+
+  updateShareBadge(tile) {
+    let el = tile.querySelector('.t-stats');
+    const st = this.screen && this.screen.stats;
+    if (!st) { if (el) el.remove(); return; }
+    if (!el) { el = h('<div class="t-stats"></div>'); tile.appendChild(el); }
+    const warn = st.limit === 'cpu' ? t('не хватает мощности компьютера') : st.limit === 'bandwidth' ? t('не хватает скорости сети') : '';
+    el.classList.toggle('warn', !!warn);
+    el.textContent = `${st.w}×${st.h} · ${st.fps} ${t('к/с')}${st.codec ? ` · ${st.codec}${st.hw ? ` (${t('видеокарта')})` : ''}` : ''}${warn ? ` · ${warn}` : ''}`;
+    el.title = warn
+      ? t('Качество снижено автоматически. Помогает меньшее разрешение или 30 к/с в настройках трансляции.')
+      : t('Столько реально получает зритель');
   },
 
   stopShare({ local = false } = {}) {
     if (!this.screen) return;
     const s = this.screen;
     this.screen = null;
+    clearInterval(this.statsTimer);
     for (const p of this.peers.values()) p.removeScreen(true);
-    s.stream.getTracks().forEach(t => t.stop());
+    s.stream.getTracks().forEach(tr => tr.stop());
     if (!local) Net.emit('stream-stop');
     const tile = this.tiles.get(App.me?.id);
-    if (tile) { const v = tile.querySelector('video'); if (v) { v.srcObject = null; v.remove(); } }
+    if (tile) { const v = tile.querySelector('video'); if (v) { v.srcObject = null; v.remove(); } this.updateShareBadge(tile); }
     Sounds.play('leave');
     UI.renderVoicePanel();
     this.renderVoiceView();
@@ -866,10 +993,10 @@ const Voice = {
       cta.innerHTML = `
         <div class="preview">${ms.slice(0, 6).map(m => avatarHtml(App.profileOf(m.clientId, m), 64)).join('') || `<div class="wl-ic" style="width:80px;height:80px;border-radius:50%;background:var(--bg-input);display:grid;place-items:center">${icon('volume', 40)}</div>`}</div>
         <h2>${esc(ch.name)}</h2>
-        <p>${ms.length ? `Сейчас в канале: ${ms.map(m => esc(App.profileOf(m.clientId, m).username)).join(', ')}` : 'Здесь пока никого нет.'}${streamer ? `<br><span class="live-badge">В эфире</span> ${esc(App.profileOf(streamer.clientId, streamer).username)} показывает экран` : ''}</p>
-        <button class="btn success big" id="vj-btn">${icon('volume', 20)} Присоединиться</button>`;
+        <p>${ms.length ? t('Сейчас в канале: {names}', { names: ms.map(m => esc(App.profileOf(m.clientId, m).username)).join(', ') }) : t('Здесь пока никого нет.')}${streamer ? `<br><span class="live-badge">${t('В эфире')}</span> ${t('{name} показывает экран', { name: esc(App.profileOf(streamer.clientId, streamer).username) })}` : ''}</p>
+        <button class="btn success big" id="vj-btn">${icon('volume', 20)} ${t('Присоединиться')}</button>`;
       $('#vj-btn').onclick = () => this.join(ch.id);
-      for (const t of this.tiles.values()) t.remove();
+      for (const tile of this.tiles.values()) tile.remove();
       this.tiles.clear();
       Viewer.place();
       return;
@@ -880,68 +1007,68 @@ const Voice = {
     const seen = new Set();
     for (const m of ch.members) {
       seen.add(m.socketId);
-      let t = this.tiles.get(m.socketId);
-      if (!t) {
-        t = h(`<div class="tile" data-sid="${esc(m.socketId)}"><div class="t-av"></div><div class="t-live"></div><div class="t-watch"></div><div class="t-name"></div></div>`);
-        t.addEventListener('contextmenu', e => { e.preventDefault(); UI.memberMenu(e.clientX, e.clientY, this.member(t.dataset.sid)); });
-        t.addEventListener('dblclick', () => { const mm = this.member(t.dataset.sid); if (mm?.stream) this.watch(mm.socketId); });
-        this.tiles.set(m.socketId, t);
-        grid.appendChild(t);
+      let tile = this.tiles.get(m.socketId);
+      if (!tile) {
+        tile = h(`<div class="tile" data-sid="${esc(m.socketId)}"><div class="t-av"></div><div class="t-live"></div><div class="t-watch"></div><div class="t-name"></div></div>`);
+        tile.addEventListener('contextmenu', e => { e.preventDefault(); UI.memberMenu(e.clientX, e.clientY, this.member(tile.dataset.sid)); });
+        tile.addEventListener('dblclick', () => { const mm = this.member(tile.dataset.sid); if (mm?.stream) this.watch(mm.socketId); });
+        this.tiles.set(m.socketId, tile);
+        grid.appendChild(tile);
       }
-      this.updateTile(t, m);
+      this.updateTile(tile, m);
     }
-    for (const [sid, t] of this.tiles) if (!seen.has(sid)) { t.remove(); this.tiles.delete(sid); }
+    for (const [sid, tile] of this.tiles) if (!seen.has(sid)) { tile.remove(); this.tiles.delete(sid); }
     Speak.reapply();
 
     // нижняя панель
     $('#voice-bar').innerHTML = `
-      <button class="vbtn ${this.muted || this.deafened ? 'off' : ''}" data-v="mic" title="${this.muted ? 'Включить микрофон' : 'Выключить микрофон'} (Ctrl+Shift+M)">${icon(this.muted || this.deafened ? 'micOff' : 'mic', 24)}</button>
-      <button class="vbtn ${this.deafened ? 'off' : ''}" data-v="deaf" title="${this.deafened ? 'Включить звук' : 'Выключить звук'} (Ctrl+Shift+D)">${icon(this.deafened ? 'headphonesOff' : 'headphones', 24)}</button>
-      ${this.canShare() ? `<button class="vbtn ${this.screen ? 'on' : ''}" data-v="share" title="${this.screen ? 'Остановить трансляцию' : 'Показать экран'}">${icon(this.screen ? 'screenOff' : 'screenShare', 24)}</button>` : ''}
-      ${App.api.voice ? `<button class="vbtn ${this.speakerOn ? 'on' : ''}" data-v="speaker" title="${this.speakerOn ? 'Звук через динамик' : 'Звук через наушник'}">${icon(this.speakerOn ? 'volume' : 'phone', 24)}</button>` : ''}
-      <button class="vbtn leave" data-v="leave" title="Отключиться">${icon('phoneOff', 24)}</button>`;
+      <button class="vbtn ${this.muted || this.deafened ? 'off' : ''}" data-v="mic" title="${this.muted ? t('Включить микрофон') : t('Выключить микрофон')} (Ctrl+Shift+M)">${icon(this.muted || this.deafened ? 'micOff' : 'mic', 24)}</button>
+      <button class="vbtn ${this.deafened ? 'off' : ''}" data-v="deaf" title="${this.deafened ? t('Включить звук') : t('Выключить звук')} (Ctrl+Shift+D)">${icon(this.deafened ? 'headphonesOff' : 'headphones', 24)}</button>
+      ${this.canShare() ? `<button class="vbtn ${this.screen ? 'on' : ''}" data-v="share" title="${this.screen ? t('Остановить трансляцию') : t('Показать экран')}">${icon(this.screen ? 'screenOff' : 'screenShare', 24)}</button>` : ''}
+      ${App.api.voice ? `<button class="vbtn ${this.speakerOn ? 'on' : ''}" data-v="speaker" title="${this.speakerOn ? t('Звук через динамик') : t('Звук через наушник')}">${icon(this.speakerOn ? 'volume' : 'phone', 24)}</button>` : ''}
+      <button class="vbtn leave" data-v="leave" title="${t('Отключиться')}">${icon('phoneOff', 24)}</button>`;
     Viewer.place();
   },
 
-  updateTile(t, m) {
+  updateTile(tile, m) {
     const p = App.profileOf(m.clientId, m);
     const isMe = m.socketId === App.me.id;
-    const key = `${p.username}|${p.avatar ? p.avatar.length : 0}|${p.color}`;
-    if (t.dataset.k !== key) {
-      t.dataset.k = key;
-      t.querySelector('.t-av').innerHTML = avatarHtml(p, 80);
+    const key = `${p.username}|${p.avatar ? p.avatar.length : 0}|${p.color}|${p.frame || ''}|${p.font || ''}`;
+    if (tile.dataset.k !== key) {
+      tile.dataset.k = key;
+      tile.querySelector('.t-av').innerHTML = avatarHtml(p, 80);
     }
     const muted = isMe ? (this.muted || this.deafened || !this.localStream) : m.muted;
     const deaf = isMe ? this.deafened : m.deafened;
     const localMute = !isMe && App.settings.voice.localMutes[m.clientId];
-    t.querySelector('.t-name').innerHTML = `${muted ? `<span class="red">${icon('micOff', 14)}</span>` : ''}${deaf ? `<span class="red">${icon('headphonesOff', 14)}</span>` : ''}${localMute ? `<span class="red">${icon('speakerOff', 14)}</span>` : ''}<span>${esc(p.username)}${isMe ? ' (вы)' : ''}</span>`;
+    tile.querySelector('.t-name').innerHTML = `${muted ? `<span class="red">${icon('micOff', 14)}</span>` : ''}${deaf ? `<span class="red">${icon('headphonesOff', 14)}</span>` : ''}${localMute ? `<span class="red">${icon('speakerOff', 14)}</span>` : ''}<span><span class="${fontClass(p)}">${esc(p.username)}</span>${isMe ? ` ${t('(вы)')}` : ''}</span>`;
 
     const streaming = isMe ? !!this.screen : !!m.stream;
     const watching = Viewer.peerId === m.socketId;
-    t.classList.toggle('watching', watching);
-    t.querySelector('.t-live').innerHTML = streaming ? `<span class="live-badge">В эфире</span>` : '';
-    const w = t.querySelector('.t-watch');
+    tile.classList.toggle('watching', watching);
+    tile.querySelector('.t-live').innerHTML = streaming ? `<span class="live-badge">${t('В эфире')}</span>` : '';
+    const w = tile.querySelector('.t-watch');
     if (streaming && !isMe) {
       w.innerHTML = watching
-        ? `<span class="btn" style="pointer-events:none">${icon('eye', 16)} Вы смотрите</span>`
-        : `<button class="btn">${icon('eye', 16)} Смотреть трансляцию</button>`;
+        ? `<span class="btn" style="pointer-events:none">${icon('eye', 16)} ${t('Вы смотрите')}</span>`
+        : `<button class="btn">${icon('eye', 16)} ${t('Смотреть трансляцию')}</button>`;
       w.classList.toggle('always', !watching);
       const b = w.querySelector('button');
       if (b) b.onclick = () => this.watch(m.socketId);
     } else if (streaming && isMe) {
       const n = this.screen.viewers.size;
-      w.innerHTML = `<span class="btn" style="pointer-events:none">${icon('eye', 16)} Смотрят: ${n}</span>`;
+      w.innerHTML = `<span class="btn" style="pointer-events:none">${icon('eye', 16)} ${t('Смотрят: {n}', { n })}</span>`;
       w.classList.remove('always');
     } else {
       w.innerHTML = '';
     }
     // своя трансляция — превью в плитке
-    let v = t.querySelector('video');
+    let v = tile.querySelector('video');
     if (isMe && this.screen) {
       if (!v) {
         v = document.createElement('video');
         v.muted = true; v.autoplay = true; v.playsInline = true;
-        t.insertBefore(v, t.firstChild);
+        tile.insertBefore(v, tile.firstChild);
       }
       if (v.srcObject !== this.screen.stream) { v.srcObject = this.screen.stream; v.play().catch(() => {}); }
     } else if (v) { v.srcObject = null; v.remove(); }

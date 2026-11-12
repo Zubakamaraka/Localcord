@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   host: {
     start: () => ipcRenderer.invoke('host:start'),
     stop: () => ipcRenderer.invoke('host:stop'),
+    apply: () => ipcRenderer.invoke('host:apply'),
+    remove: () => ipcRenderer.invoke('host:delete'),
     status: () => ipcRenderer.invoke('host:status'),
     update: (patch) => ipcRenderer.invoke('host:update', patch),
     openData: () => ipcRenderer.send('host:openData'),
@@ -56,6 +58,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   update: {
     download: (baseUrl, version) => ipcRenderer.invoke('update:download', { baseUrl, version }),
     install: () => ipcRenderer.invoke('update:install'),
+    list: (force) => ipcRenderer.invoke('update:list', !!force),
+    fetch: (tag) => ipcRenderer.invoke('update:fetch', tag),
     onProgress: listen('update:progress'),
   },
 });

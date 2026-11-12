@@ -24,7 +24,7 @@ const Chat = {
   async open(chId, { force = false } = {}) {
     const ch = App.channel(chId);
     if (!ch) return;
-    $('#message-input').placeholder = `Написать в #${ch.name}`;
+    $('#message-input').placeholder = t('Написать в #{name}', { name: ch.name });
     this.renderTyping();
     const e = this.entry(chId);
     if (!e.loaded || force) {
@@ -68,10 +68,10 @@ const Chat = {
     if (!e.loaded) {
       frag.appendChild(h(`<div class="load-more"><span class="spinner" style="display:inline-block"></span></div>`));
     } else if (e.hasMore) {
-      frag.appendChild(h(`<div class="load-more">Прокрутите вверх, чтобы загрузить старые сообщения</div>`));
+      frag.appendChild(h(`<div class="load-more">${t('Прокрутите вверх, чтобы загрузить старые сообщения')}</div>`));
     } else {
-      frag.appendChild(h(`<div class="chat-welcome"><div class="wl-ic">${icon('hash', 40)}</div><h2></h2><p>Это начало канала #${esc(ch.name)}. Файлы и картинки можно просто перетащить в окно.</p></div>`));
-      frag.querySelector('h2').textContent = `Добро пожаловать в #${ch.name}!`;
+      frag.appendChild(h(`<div class="chat-welcome"><div class="wl-ic">${icon('hash', 40)}</div><h2></h2><p>${t('Это начало канала #{name}. Файлы и картинки можно просто перетащить в окно.', { name: esc(ch.name) })}</p></div>`));
+      frag.querySelector('h2').textContent = t('Добро пожаловать в #{name}!', { name: ch.name });
     }
     let prev = null;
     for (const m of e.messages) { this.renderMessage(m, prev, frag); prev = m; }
@@ -94,9 +94,9 @@ const Chat = {
         : `<span class="m-stamp">${fmtTime(m.ts)}</span>`}
       ${m.text ? `<div class="m-text">${linkify(m.text)}</div>` : ''}
       ${m.attachments && m.attachments.length ? `<div class="atts">${m.attachments.map(a => this.attachmentHtml(a)).join('')}</div>` : ''}
-      ${canDelete ? `<div class="m-actions"><button data-del title="Удалить сообщение">${icon('trash', 18)}</button></div>` : ''}
+      ${canDelete ? `<div class="m-actions"><button data-del title="${t('Удалить сообщение')}">${icon('trash', 18)}</button></div>` : ''}
     </div>`);
-    if (head) el.querySelector('.m-name').textContent = p.username;
+    if (head) { const n = el.querySelector('.m-name'); n.textContent = p.username; if (fontClass(p)) n.className += ' ' + fontClass(p); }
     parent.appendChild(el);
     return el;
   },
@@ -126,8 +126,8 @@ const Chat = {
     const ic = /zip|rar|7z|tar|gz/i.test(a.name) ? 'fileArchive' : 'file';
     return `<div class="att-file" ${compact ? 'style="padding:8px 12px"' : ''}>
       ${compact ? '' : icon(ic, 32, 'big')}
-      <div class="f-main"><div class="f-name" data-dl="${esc(a.id)}" title="Скачать">${esc(a.name)}</div><div class="f-size">${fmtBytes(a.size)}</div></div>
-      <button class="icon-btn" data-dl="${esc(a.id)}" title="Скачать">${icon('download', 20)}</button>
+      <div class="f-main"><div class="f-name" data-dl="${esc(a.id)}" title="${t('Скачать')}">${esc(a.name)}</div><div class="f-size">${fmtBytes(a.size)}</div></div>
+      <button class="icon-btn" data-dl="${esc(a.id)}" title="${t('Скачать')}">${icon('download', 20)}</button>
     </div>`;
   },
 
@@ -177,7 +177,7 @@ const Chat = {
       }
       if (wasBottom || mine) this.scrollToBottom();
       else if (!$('.new-msgs-pill')) {
-        const pill = h(`<button class="new-msgs-pill">Новые сообщения ${icon('chevronDown', 14)}</button>`);
+        const pill = h(`<button class="new-msgs-pill">${t('Новые сообщения')} ${icon('chevronDown', 14)}</button>`);
         pill.onclick = () => this.scrollToBottom();
         $('#chat-view').appendChild(pill);
       }
@@ -194,7 +194,7 @@ const Chat = {
         if (App.settings.app.notifications && 'Notification' in window) {
           const ch = App.channel(m.channel);
           const p = App.profileOf(m.author.clientId, m.author);
-          const body = m.text ? m.text.slice(0, 140) : `Файл: ${m.attachments?.[0]?.name || ''}`;
+          const body = m.text ? m.text.slice(0, 140) : t('Файл: {name}', { name: m.attachments?.[0]?.name || '' });
           try {
             const n = new Notification(`${p.username} · #${ch ? ch.name : ''}`, { body, silent: true, icon: p.avatar || undefined });
             n.onclick = () => { App.api.window.show(); UI.selectChannel(m.channel); };
@@ -227,12 +227,12 @@ const Chat = {
 
   renderTyping() {
     const el = $('#typing');
-    const t = App.typing[App.currentChannel] || {};
+    const typing = App.typing[App.currentChannel] || {};
     const now = Date.now();
-    const names = Object.entries(t).filter(([, v]) => v.until > now).map(([, v]) => v.name);
+    const names = Object.entries(typing).filter(([, v]) => v.until > now).map(([, v]) => v.name);
     if (!names.length) { el.innerHTML = ''; return; }
-    const who = names.length === 1 ? `<b>${esc(names[0])}</b> печатает…`
-      : names.length <= 3 ? `<b>${names.map(esc).join(', ')}</b> печатают…` : 'Несколько человек печатают…';
+    const who = names.length === 1 ? t('<b>{name}</b> печатает…', { name: esc(names[0]) })
+      : names.length <= 3 ? t('<b>{names}</b> печатают…', { names: names.map(esc).join(', ') }) : t('Несколько человек печатают…');
     el.innerHTML = `<span class="dots"><i></i><i></i><i></i></span><span>${who}</span>`;
   },
 
@@ -241,8 +241,8 @@ const Chat = {
     const input = $('#message-input');
     const text = input.value;
     if (!text.trim() && !this.pending.length) return;
-    if (text.length > 4000) { toast('Сообщение слишком длинное (максимум 4000 символов)', { type: 'err' }); return; }
-    if (!App.connected) { toast('Нет связи с сервером', { type: 'err' }); return; }
+    if (text.length > 4000) { toast(t('Сообщение слишком длинное (максимум 4000 символов)'), { type: 'err' }); return; }
+    if (!App.connected) { toast(t('Нет связи с сервером'), { type: 'err' }); return; }
     const channel = App.currentChannel;
     const files = this.pending.splice(0);
     this.renderPending();
@@ -251,7 +251,7 @@ const Chat = {
 
     if (!files.length) {
       const r = await Net.request('message', { channel, text });
-      if (!r.ok) { input.value = text; toast(r.error === 'rate' ? 'Слишком часто — подождите пару секунд' : 'Сообщение не отправлено', { type: 'err' }); }
+      if (!r.ok) { input.value = text; toast(r.error === 'rate' ? t('Слишком часто — подождите пару секунд') : t('Сообщение не отправлено'), { type: 'err' }); }
       return;
     }
     await this.sendWithFiles(channel, text, files);
@@ -260,7 +260,7 @@ const Chat = {
   async sendWithFiles(channel, text, files) {
     const el = h(`<div class="msg head pending">
       <div class="m-av">${avatarHtml(App.settings.profile, 40)}</div>
-      <div class="m-head"><span class="m-name"></span><span class="m-time">отправка…</span></div>
+      <div class="m-head"><span class="m-name ${fontClass(App.settings.profile)}"></span><span class="m-time">${t('отправка…')}</span></div>
       ${text ? `<div class="m-text">${esc(text)}</div>` : ''}
       <div class="atts"></div>
     </div>`);
@@ -269,7 +269,7 @@ const Chat = {
     const rows = files.map(f => {
       const r = h(`<div class="att-file">${icon('upload', 28, 'big')}
         <div class="f-main"><div class="f-name" style="color:var(--text)"></div><div class="f-size"></div><div class="progress"><i></i></div></div>
-        <button class="icon-btn" title="Отменить">${icon('x', 18)}</button></div>`);
+        <button class="icon-btn" title="${t('Отменить')}">${icon('x', 18)}</button></div>`);
       r.querySelector('.f-name').textContent = f.file.name;
       r.querySelector('.f-size').textContent = fmtBytes(f.file.size);
       atts.appendChild(r);
@@ -291,7 +291,7 @@ const Chat = {
         if (f.file.type.startsWith('image/') && f.file.type !== 'image/gif') thumb = await this.makeThumb(f.file).catch(() => null);
         const meta = await this.upload(f.file, job, (got, total) => {
           bar.style.width = `${Math.round(got / total * 100)}%`;
-          size.textContent = `${fmtBytes(got)} из ${fmtBytes(total)}`;
+          size.textContent = t('{got} из {total}', { got: fmtBytes(got), total: fmtBytes(total) });
         });
         const att = { id: meta.id };
         if (thumb) {
@@ -306,7 +306,7 @@ const Chat = {
         bar.style.width = '100%';
       } catch (err) {
         if (job.cancelled) { row.remove(); continue; }
-        const msg = err && err.error === 'too-large' ? `Файл больше лимита сервера (${err.maxFileMB || App.server.maxFileMB} МБ)` : 'Не удалось загрузить файл';
+        const msg = err && err.error === 'too-large' ? t('Файл больше лимита сервера ({mb} МБ)', { mb: err.maxFileMB || App.server.maxFileMB }) : t('Не удалось загрузить файл');
         toast(`${f.file.name}: ${msg}`, { type: 'err', timeout: 6000 });
         row.remove();
       } finally {
@@ -316,7 +316,7 @@ const Chat = {
     if (!uploaded.length && !text.trim()) { el.remove(); return; }
     const r = await Net.request('message', { channel, text, attachments: uploaded });
     el.remove();
-    if (!r.ok) toast('Сообщение не отправлено', { type: 'err' });
+    if (!r.ok) toast(t('Сообщение не отправлено'), { type: 'err' });
   },
 
   upload(file, job, onProgress) {
@@ -363,7 +363,7 @@ const Chat = {
   addFiles(fileList) {
     if (!App.currentChannel || UI.view !== 'chat') return;
     for (const file of fileList) {
-      if (this.pending.length >= 10) { toast('Не больше 10 файлов за раз', { type: 'err' }); break; }
+      if (this.pending.length >= 10) { toast(t('Не больше 10 файлов за раз'), { type: 'err' }); break; }
       const preview = file.type.startsWith('image/') && file.size < 50 * 1024 * 1024 ? URL.createObjectURL(file) : null;
       this.pending.push({ file, preview, key: Math.random().toString(36).slice(2) });
     }
@@ -379,7 +379,7 @@ const Chat = {
       const el = h(`<div class="pf">
         <div class="pf-prev">${p.preview ? `<img src="${esc(p.preview)}">` : icon('file', 36)}</div>
         <div class="pf-name"></div><div class="pf-size">${fmtBytes(p.file.size)}</div>
-        <button class="pf-x" title="Убрать">${icon('trash', 14)}</button>
+        <button class="pf-x" title="${t('Убрать')}">${icon('trash', 14)}</button>
       </div>`);
       el.querySelector('.pf-name').textContent = p.file.name;
       el.querySelector('.pf-x').onclick = () => {
@@ -392,13 +392,13 @@ const Chat = {
   },
 
   autosize() {
-    const t = $('#message-input');
-    t.style.height = 'auto';
-    t.style.height = Math.min(t.scrollHeight, innerHeight * 0.4) + 'px';
+    const ta = $('#message-input');
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, innerHeight * 0.4) + 'px';
   },
 
   lightbox(url, name, id) {
-    const lb = h(`<div class="lightbox"><img alt=""><div class="lb-bar"><span></span><button class="btn">${icon('download', 16)} Скачать</button><button class="btn">${icon('x', 16)} Закрыть</button></div></div>`);
+    const lb = h(`<div class="lightbox"><img alt=""><div class="lb-bar"><span></span><button class="btn">${icon('download', 16)} ${t('Скачать')}</button><button class="btn">${icon('x', 16)} ${t('Закрыть')}</button></div></div>`);
     lb.querySelector('img').src = url;
     lb.querySelector('.lb-bar span').textContent = name || '';
     const close = () => { lb.remove(); document.removeEventListener('keydown', onKey, true); };
@@ -410,6 +410,12 @@ const Chat = {
     lb.onclick = e => { if (e.target === lb) close(); };
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(lb);
+  },
+
+  /** Надписи, которые рисуются один раз (обновляются при смене языка) */
+  initTexts() {
+    $('#drop-overlay').innerHTML = `<div class="drop-box">${icon('upload', 48)}<b>${t('Отпустите, чтобы прикрепить')}</b><span>${t('Файлы любого размера, картинки и видео')}</span></div>`;
+    if (!App.currentChannel) $('#message-input').placeholder = t('Написать сообщение');
   },
 
   // ---------- инициализация ----------
@@ -453,7 +459,7 @@ const Chat = {
       const del = e.target.closest('[data-del]');
       if (del) {
         const id = del.closest('.msg').dataset.id;
-        const ok = e.shiftKey || await confirmDialog('Удалить сообщение', 'Сообщение и его вложения будут удалены у всех. (Подсказка: Shift+клик — удалить без вопроса.)', { ok: 'Удалить', danger: true });
+        const ok = e.shiftKey || await confirmDialog(t('Удалить сообщение'), t('Сообщение и его вложения будут удалены у всех. (Подсказка: Shift+клик — удалить без вопроса.)'), { ok: t('Удалить'), danger: true });
         if (ok) Net.emit('message-delete', { channel: App.currentChannel, id });
       }
     });
@@ -467,11 +473,11 @@ const Chat = {
       if (!m) return;
       const mine = m.author.clientId === App.settings.profile.clientId || App.me?.isHost;
       ctxMenu(e.clientX, e.clientY, [
-        m.text ? { label: 'Копировать текст', icon: 'copy', onClick: () => copyText(m.text) } : null,
-        ...(m.attachments || []).map(a => ({ label: `Скачать «${a.name.length > 28 ? a.name.slice(0, 26) + '…' : a.name}»`, icon: 'download', onClick: () => App.api.app.download(App.fileUrl(a.id, true)) })),
+        m.text ? { label: t('Копировать текст'), icon: 'copy', onClick: () => copyText(m.text) } : null,
+        ...(m.attachments || []).map(a => ({ label: t('Скачать «{name}»', { name: a.name.length > 28 ? a.name.slice(0, 26) + '…' : a.name }), icon: 'download', onClick: () => App.api.app.download(App.fileUrl(a.id, true)) })),
         mine ? { type: 'sep' } : null,
-        mine ? { label: 'Удалить сообщение', icon: 'trash', danger: true, onClick: async () => {
-          if (await confirmDialog('Удалить сообщение', 'Сообщение и его вложения будут удалены у всех.', { ok: 'Удалить', danger: true })) Net.emit('message-delete', { channel: App.currentChannel, id: m.id });
+        mine ? { label: t('Удалить сообщение'), icon: 'trash', danger: true, onClick: async () => {
+          if (await confirmDialog(t('Удалить сообщение'), t('Сообщение и его вложения будут удалены у всех.'), { ok: t('Удалить'), danger: true })) Net.emit('message-delete', { channel: App.currentChannel, id: m.id });
         } } : null,
       ]);
     });
@@ -480,7 +486,7 @@ const Chat = {
     let depth = 0;
     const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
     const overlay = $('#drop-overlay');
-    overlay.innerHTML = `<div class="drop-box">${icon('upload', 48)}<b>Отпустите, чтобы прикрепить</b><span>Файлы любого размера, картинки и видео</span></div>`;
+    this.initTexts();
     document.addEventListener('dragenter', e => {
       if (!hasFiles(e)) return;
       e.preventDefault();

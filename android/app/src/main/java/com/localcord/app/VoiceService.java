@@ -21,8 +21,8 @@ public class VoiceService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm != null) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "Голосовой канал", NotificationManager.IMPORTANCE_LOW);
-            ch.setDescription("Показывается, пока вы в голосовом канале LocalCord");
+            NotificationChannel ch = new NotificationChannel(CHANNEL_ID, getString(R.string.voice_channel_name), NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription(getString(R.string.voice_channel_desc));
             nm.createNotificationChannel(ch);
         }
         Intent open = new Intent(this, MainActivity.class);
@@ -30,7 +30,7 @@ public class VoiceService extends Service {
         PendingIntent pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("LocalCord")
-                .setContentText("Голос подключён")
+                .setContentText(getString(R.string.voice_connected))
                 .setSmallIcon(R.drawable.ic_stat_voice)
                 .setContentIntent(pi)
                 .setOngoing(true)

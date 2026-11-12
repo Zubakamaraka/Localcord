@@ -3,18 +3,36 @@
 
 const Net = {
   joinedOnce: false,
+  seq: 0,
 
   isLocal(address) { return /^(127\.0\.0\.1|localhost)(:|$)/.test(address || ''); },
 
+  /**
+   * Это адрес сервера, запущенного в этом же приложении? Тогда входим как владелец:
+   * без пароля и с правами хоста — по любому из своих адресов, а не только по 127.0.0.1.
+   */
+  ownInfo(address, st) {
+    if (!st || !st.running) return null;
+    const m = /^(.*):(\d+)$/.exec(address || '');
+    if (!m || Number(m[2]) !== Number(st.port)) return null;
+    const mine = ['127.0.0.1', 'localhost', ...(st.addresses || []).map(a => a.address)];
+    return mine.includes(m[1]) ? st : null;
+  },
+
   /** Подключиться. Возвращает { ok } или { ok:false, error } */
-  connect(address, password = '') {
+  async connect(address, password = '') {
     this.disconnect({ keepScreen: true });
     address = normalizeAddress(address);
     const base = `http://${address}`;
     App.address = address;
     App.base = base;
+    App.own = false;
     this.password = password;
     this.joinedOnce = false;
+    const seq = ++this.seq;
+    let own = null;
+    try { own = this.ownInfo(address, await App.api.host.status()); } catch { /* нет встроенного сервера */ }
+    if (seq !== this.seq) return { ok: false, error: 'cancelled' }; // пока спрашивали статус, подключение отменили или начали другое
 
     return new Promise(resolve => {
       let settled = false;
@@ -34,11 +52,13 @@ const Net = {
         if (!this.joinedOnce) { this.disconnect({ keepScreen: true }); done({ ok: false, error: 'unreachable' }); }
       });
 
-      socket.on('connect', () => {
+      socket.on('connect', async () => {
         const p = App.settings.profile;
+        // сервер мог перезапуститься с новым секретом владельца — спрашиваем заново при каждом входе
+        if (own) { try { own = this.ownInfo(address, await App.api.host.status()) || own; } catch { /* ignore */ } }
         socket.emit('join', {
-          username: p.username, color: p.color, avatar: p.avatar, clientId: p.clientId,
-          password: this.password, clientVersion: App.info.version,
+          username: p.username, color: p.color, avatar: p.avatar, frame: p.frame, font: p.font, clientId: p.clientId,
+          password: this.password, adminKey: own ? own.adminKey : undefined, clientVersion: App.info.version,
         }, async (res) => {
           if (!res || !res.ok) {
             this.disconnect({ keepScreen: true });
@@ -46,6 +66,7 @@ const Net = {
           }
           const first = !this.joinedOnce;
           this.joinedOnce = true;
+          App.own = !!own && (!own.id || !res.server.id || own.id === res.server.id);
           await this.onJoined(res, first);
           done({ ok: true });
         });
@@ -59,7 +80,7 @@ const Net = {
         if (reason === 'io client disconnect') return;
         // сервер сам закрыл соединение (например, перезапуск) — пробуем вернуться
         if (reason === 'io server disconnect') setTimeout(() => { if (App.socket === socket) socket.connect(); }, 2000);
-        UI.banner('conn', { kind: 'warn', html: `<span class="spinner"></span><span class="grow">Связь с сервером потеряна. Переподключаемся…</span>` });
+        UI.banner('conn', { kind: 'warn', html: `<span class="spinner"></span><span class="grow">${t('Связь с сервером потеряна. Переподключаемся…')}</span>` });
       });
 
       this.bindEvents(socket);
@@ -75,11 +96,11 @@ const Net = {
     App.profiles = res.profiles || {};
     UI.banner('conn', null);
 
-    // запоминаем сервер
-    const isLocal = this.isLocal(App.address);
-    const servers = (App.settings.servers || []).filter(s => s.address !== App.address);
-    if (!isLocal) servers.unshift({ address: App.address, name: res.server.name, password: this.password, lastUsed: Date.now() });
-    await App.saveSettings({ servers: servers.slice(0, 12), lastServer: isLocal ? App.settings.lastServer : App.address, mode: isLocal ? 'host' : 'client' });
+    // запоминаем сервер (свой собственный в список «чужих» не попадает)
+    const own = App.own;
+    const servers = (App.settings.servers || []).filter(s => s.address !== App.address && !(res.server.id && s.id === res.server.id));
+    if (!own) servers.unshift({ address: App.address, id: res.server.id || null, name: res.server.name, password: this.password, lastUsed: Date.now() });
+    await App.saveSettings({ servers: servers.slice(0, 12), lastServer: own ? App.settings.lastServer : App.address, mode: own ? 'host' : 'client' });
 
     UI.showApp();
     UI.setTitle();
@@ -103,8 +124,8 @@ const Net = {
     socket.on('channels', list => {
       App.channels = list;
       if (App.currentChannel && !App.channel(App.currentChannel)) {
-        const t = list.find(c => c.type === 'text');
-        if (t) UI.selectChannel(t.id);
+        const t0 = list.find(c => c.type === 'text');
+        if (t0) UI.selectChannel(t0.id);
       }
       UI.renderSidebar();
       Voice.onChannels();
@@ -137,8 +158,8 @@ const Net = {
 
   request(event, data, timeout = 8000) {
     return new Promise(resolve => {
-      const t = setTimeout(() => resolve({ ok: false, error: 'timeout' }), timeout);
-      this.emit(event, data, r => { clearTimeout(t); resolve(r); });
+      const tm = setTimeout(() => resolve({ ok: false, error: 'timeout' }), timeout);
+      this.emit(event, data, r => { clearTimeout(tm); resolve(r); });
     });
   },
 
@@ -153,6 +174,7 @@ const Net = {
     }
     App.connected = false;
     this.joinedOnce = false;
+    this.seq++;
     if (!keepScreen) UI.setTitle();
   },
 };

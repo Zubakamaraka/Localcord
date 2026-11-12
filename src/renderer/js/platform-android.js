@@ -17,12 +17,12 @@ function makeAndroidApi(base) {
         return { version: i.version || '0.0.0', platform: 'android', packaged: true, model: i.model || '' };
       },
       openExternal: url => call('openUrl', { url }).catch(() => {}),
-      download: url => call('openUrl', { url }).catch(() => toast('Не удалось открыть загрузку', { type: 'err' })),
+      download: url => call('openUrl', { url }).catch(() => toast(t('Не удалось открыть загрузку'), { type: 'err' })),
     },
     net: {
       ...base.net,
       canDiscover: true,
-      discover: () => call('discover', { timeout: 1500 }).then(r => r.servers || []).catch(() => []),
+      discover: () => call('discover', { timeout: 1500 }).then(r => dedupeServers(r.servers || [])).catch(() => []),
     },
     voice: {
       active: on => call('setVoiceActive', { active: !!on }).catch(() => {}),

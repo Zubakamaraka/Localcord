@@ -2,13 +2,13 @@
 'use strict';
 
 const THEMES = [
-  { id: 'graphite', name: 'Графит', hint: 'классика, как в Discord', c: ['#1e1f22', '#2b2d31', '#313338', '#6d5dfc', '#dbdee1'] },
-  { id: 'midnight', name: 'Полночь', hint: 'чёрная, для OLED-экранов', c: ['#000000', '#0b0b0d', '#111214', '#6d5dfc', '#dbdee1'] },
-  { id: 'light', name: 'Светлая', hint: 'для дня и яркой комнаты', c: ['#e3e5e8', '#f2f3f5', '#ffffff', '#6d5dfc', '#313338'] },
-  { id: 'ocean', name: 'Океан', hint: 'глубокий синий', c: ['#08131d', '#0f1f2d', '#132736', '#22b8cf', '#d5e5f0'] },
-  { id: 'forest', name: 'Лес', hint: 'спокойный зелёный', c: ['#0d1510', '#142019', '#19281f', '#3fae6a', '#d9e7dd'] },
-  { id: 'sunset', name: 'Закат', hint: 'тёплый вечерний', c: ['#1b1016', '#26161e', '#301c26', '#ff7a59', '#f0dee3'] },
-  { id: 'sakura', name: 'Сакура', hint: 'светлая розовая', c: ['#f1dde6', '#faecf2', '#fff8fb', '#e0568f', '#3d2a33'] },
+  { id: 'graphite', name: N_('Графит'), hint: N_('классика, как в Discord'), c: ['#1e1f22', '#2b2d31', '#313338', '#6d5dfc', '#dbdee1'] },
+  { id: 'midnight', name: N_('Полночь'), hint: N_('чёрная, для OLED-экранов'), c: ['#000000', '#0b0b0d', '#111214', '#6d5dfc', '#dbdee1'] },
+  { id: 'light', name: N_('Светлая'), hint: N_('для дня и яркой комнаты'), c: ['#e3e5e8', '#f2f3f5', '#ffffff', '#6d5dfc', '#313338'] },
+  { id: 'ocean', name: N_('Океан'), hint: N_('глубокий синий'), c: ['#08131d', '#0f1f2d', '#132736', '#22b8cf', '#d5e5f0'] },
+  { id: 'forest', name: N_('Лес'), hint: N_('спокойный зелёный'), c: ['#0d1510', '#142019', '#19281f', '#3fae6a', '#d9e7dd'] },
+  { id: 'sunset', name: N_('Закат'), hint: N_('тёплый вечерний'), c: ['#1b1016', '#26161e', '#301c26', '#ff7a59', '#f0dee3'] },
+  { id: 'sakura', name: N_('Сакура'), hint: N_('светлая розовая'), c: ['#f1dde6', '#faecf2', '#fff8fb', '#e0568f', '#3d2a33'] },
 ];
 
 const ACCENTS = ['#6d5dfc', '#5865f2', '#00a8fc', '#22b8cf', '#3fae6a', '#23a55a', '#f0b232', '#ff7a59', '#ed4245', '#e0568f', '#9b59b6'];
@@ -18,7 +18,7 @@ const SCALES = [90, 100, 110, 125];
 const Theme = {
   apply(ui = (App.settings && App.settings.ui) || {}) {
     const root = document.documentElement;
-    const theme = THEMES.some(t => t.id === ui.theme) ? ui.theme : 'graphite';
+    const theme = THEMES.some(x => x.id === ui.theme) ? ui.theme : 'graphite';
     if (theme === 'graphite') delete root.dataset.theme; else root.dataset.theme = theme;
     if (ui.accent && /^#[0-9a-f]{6}$/i.test(ui.accent)) root.style.setProperty('--accent', ui.accent);
     else root.style.removeProperty('--accent');
