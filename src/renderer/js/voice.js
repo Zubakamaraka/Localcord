@@ -306,6 +306,12 @@ const Speak = {
 // ============================================================
 //  Просмотр трансляции: сцена, полный экран, мини-окно, «поверх окон»
 // ============================================================
+// Обычная стрелка — если не удалось взять картинку курсора у ведущего
+const DEFAULT_CURSOR = {
+  png: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="30" viewBox="0 0 20 30"><path d="M1 1v23l6-6 4 9 3.5-1.5-4-8.5H19z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>'),
+  w: 20, hx: 1, hy: 1,
+};
+
 const Viewer = {
   el: null,
   video: null,
@@ -319,6 +325,7 @@ const Viewer = {
     if (this.el) return;
     this.el = h(`<div id="viewer">
       <video autoplay playsinline></video>
+      <img class="v-cursor hidden" alt="">
       <div class="v-wait"><span class="spinner big"></span><span>${t('Подключение к трансляции…')}</span></div>
       <div class="v-top">
         <div class="v-title"><span class="live-badge">${t('В эфире')}</span><span class="v-name"></span></div>
@@ -333,6 +340,7 @@ const Viewer = {
       </div>
     </div>`);
     this.video = this.el.querySelector('video');
+    this.cursorEl = this.el.querySelector('.v-cursor');
     if (!document.pictureInPictureEnabled) this.el.querySelector('[data-a="pip"]').remove();
     this.video.addEventListener('dblclick', () => this.toggleFullscreen());
     this.el.querySelector('.v-vol input').oninput = e => { this.video.volume = e.target.value / 100; };
@@ -387,6 +395,7 @@ const Viewer = {
     if (this.peerId && this.peerId !== peerId) this.close({ silent: true });
     this.peerId = peerId;
     this.forceMini = false;
+    this.resetCursor();
     const m = Voice.member(peerId);
     const p = App.profileOf(m?.clientId, m);
     this.el.querySelector('.v-name').textContent = p.username;
@@ -421,6 +430,7 @@ const Viewer = {
   updateStats() {
     const v = this.video;
     if (!v.videoWidth) return;
+    this.measureDelay();
     const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality().totalVideoFrames : 0;
     const fps = this.lastFrames ? q - this.lastFrames : 0;
     this.lastFrames = q;
@@ -494,6 +504,100 @@ const Viewer = {
     } catch { toast(t('Режим «поверх окон» недоступен'), { type: 'err' }); }
   },
 
+  // ---------- курсор поверх трансляции окна ----------
+  // Ведущий присылает, где курсор в окне (доли ширины и высоты) и как он выглядит. Видео приходит
+  // с задержкой (сжатие, сеть, буфер), поэтому курсор показываем с той же задержкой — иначе он
+  // убегал бы вперёд картинки.
+  cursorQ: [],
+  cursorDelay: 80,
+  cursorRaf: 0,
+  cursorAt: 0,
+
+  onCursor({ from, pos, shape }) {
+    if (!this.el || from !== this.peerId) return;
+    if (shape) {
+      this.cursorShape = shape;
+      this.cursorEl.src = shape.png || DEFAULT_CURSOR.png;
+      this.cursorEl.dataset.w = shape.png ? shape.w : DEFAULT_CURSOR.w;
+      this.cursorEl.dataset.hx = shape.png ? shape.hx : DEFAULT_CURSOR.hx;
+      this.cursorEl.dataset.hy = shape.png ? shape.hy : DEFAULT_CURSOR.hy;
+    }
+    if (pos) {
+      if (!this.cursorShape) this.onCursor({ from, shape: { png: null } }); // вид ещё не пришёл — пока обычная стрелка
+      const now = performance.now();
+      this.cursorAt = now;
+      this.cursorQ.push({ at: now, ...pos });
+      if (this.cursorQ.length > 240) this.cursorQ.splice(0, this.cursorQ.length - 240);
+      if (!this.cursorRaf) this.cursorRaf = requestAnimationFrame(() => this.drawCursor());
+    }
+  },
+
+  /** Задержка видео у зрителя: буфер + расшифровка кадра + примерно сжатие и показ у ведущего */
+  async measureDelay() {
+    const tr = this.stream && this.stream.getVideoTracks()[0];
+    const peer = Voice.peers.get(this.peerId);
+    if (!tr || !peer || !this.cursorQ.length) return;
+    try {
+      const report = await peer.pc.getStats(tr);
+      for (const r of report.values()) {
+        if (r.type !== 'inbound-rtp' || r.kind !== 'video') continue;
+        const prev = this.delayPrev;
+        this.delayPrev = r;
+        if (!prev) continue;
+        const em = r.jitterBufferEmittedCount - prev.jitterBufferEmittedCount;
+        const fd = r.framesDecoded - prev.framesDecoded;
+        if (em <= 0 || fd <= 0) continue;
+        const jb = (r.jitterBufferDelay - prev.jitterBufferDelay) / em;
+        const dec = (r.totalDecodeTime - prev.totalDecodeTime) / fd;
+        const ms = (jb + dec) * 1000 + 40;
+        if (Number.isFinite(ms)) this.cursorDelay = Math.round(Math.max(20, Math.min(600, this.cursorDelay * 0.5 + ms * 0.5)));
+      }
+    } catch { /* ignore */ }
+  },
+
+  drawCursor() {
+    this.cursorRaf = 0;
+    const el = this.cursorEl;
+    if (!el || !this.peerId) return;
+    const now = performance.now();
+    const due = now - this.cursorDelay;
+    const q = this.cursorQ;
+    let i = -1;
+    for (let k = q.length - 1; k >= 0; k--) if (q[k].at <= due) { i = k; break; }
+    if (i > 0) q.splice(0, i); // более старые уже не понадобятся
+    const p = i >= 0 ? q[0] : null;
+    const v = this.video;
+    // Ведущий повторяет положение раз в секунду; давно ничего нет — курсор не показываем
+    const stale = now - this.cursorAt > 2500;
+    if (!p || !p.v || stale || !v.videoWidth || this.mode === null) el.classList.add('hidden');
+    else {
+      const box = v.getBoundingClientRect();
+      const host = this.el.getBoundingClientRect();
+      const k = Math.min(box.width / v.videoWidth, box.height / v.videoHeight);
+      const dw = v.videoWidth * k, dh = v.videoHeight * k;
+      const ox = box.left - host.left + (box.width - dw) / 2;
+      const oy = box.top - host.top + (box.height - dh) / 2;
+      // размер курсора — как у ведущего относительно окна, но не мельче половины и не крупнее двойного
+      const scale = Math.max(0.5, Math.min(2, p.w ? dw / p.w : 1));
+      const x = ox + p.x * dw - Number(el.dataset.hx || 0) * scale;
+      const y = oy + p.y * dh - Number(el.dataset.hy || 0) * scale;
+      el.style.width = `${Number(el.dataset.w || 32) * scale}px`;
+      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      el.classList.remove('hidden');
+    }
+    // пока есть что показывать или убирать — рисуем каждый кадр
+    if (q.length > 1 || (p && p.v && !stale)) this.cursorRaf = requestAnimationFrame(() => this.drawCursor());
+  },
+
+  resetCursor() {
+    cancelAnimationFrame(this.cursorRaf);
+    this.cursorRaf = 0;
+    this.cursorQ = [];
+    this.cursorShape = null;
+    this.delayPrev = null;
+    if (this.cursorEl) { this.cursorEl.classList.add('hidden'); this.cursorEl.removeAttribute('src'); delete this.cursorEl.dataset.w; }
+  },
+
   close({ silent = false, notify = null } = {}) {
     if (!this.peerId) return;
     const pid = this.peerId;
@@ -505,6 +609,7 @@ const Viewer = {
     if (this.pseudoFs) this.setPseudoFs(false);
     if (document.pictureInPictureElement === this.video) document.exitPictureInPicture().catch(() => {});
     this.video.srcObject = null;
+    this.resetCursor();
     this.el.remove();
     if (!silent) Voice.signal(pid, { type: 'unwatch' });
     const peer = Voice.peers.get(pid);
@@ -648,6 +753,8 @@ const Voice = {
       if (this.screen) {
         this.screen.viewers.add(from);
         p.addScreen();
+        const c = this.screen.cursor;
+        if (c && c.shape) Net.emit('stream-cursor', { to: [from], shape: c.shape, pos: c.pos || undefined });
         this.renderVoiceView();
       }
       return;
@@ -791,6 +898,7 @@ const Voice = {
     const v = App.settings.voice;
     let quality = QUALITY[v.quality] ? v.quality : '1080p30';
     let shareAudio = !!v.shareAudio;
+    let shareCursor = v.shareCursor !== false;
 
     if (App.api.browser) return this.startShare({ id: null, quality, audio: shareAudio });
 
@@ -805,11 +913,16 @@ const Voice = {
       <div class="src-grid"></div>
       <div class="field"><label>${t('Качество трансляции')}</label><div class="seg" id="q-seg"></div>
         <span class="hint" id="q-hint"></span></div>
-      ${App.info.platform === 'win32' ? `<label class="check"><input type="checkbox" id="q-audio"><span class="check-text"><b>${t('Транслировать звук компьютера')}</b><span>${t('Звук игры или видео — в стерео и без обработки «под речь». LocalCord просит Windows не добавлять в трансляцию собственный звук (голоса друзей). Если зрители всё же слышат себя с эхом — ваша Windows этого не умеет: выключите галочку.')}</span></span></label>` : ''}
+      ${App.info.systemAudio ? `<label class="check"><input type="checkbox" id="q-audio"><span class="check-text"><b>${t('Транслировать звук компьютера')}</b><span>${App.info.ownAudioExclusion
+        ? t('Звук игры или видео — в стерео. Голоса друзей из LocalCord в трансляцию не попадают.')
+        : t('Звук игры или видео. Голоса друзей из LocalCord программа вычитает из трансляции, поэтому звук будет моно: Windows 10 не умеет отдавать звук без голосов, это умеет только Windows 11.')}</span></span></label>` : ''}
+      ${App.info.shareCursor ? `<label class="check hidden" id="q-cursor-row"><input type="checkbox" id="q-cursor"><span class="check-text"><b>${t('Показывать курсор зрителям')}</b><span>${t('В играх Windows часто не передаёт курсор при показе окна — LocalCord дорисует его у зрителей. Если у зрителей курсор двоится, выключите.')}</span></span></label>` : ''}
     </div>`);
     const grid = body.querySelector('.src-grid');
     const renderGrid = () => {
       $$('.tabs button', body).forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+      const cursorRow = body.querySelector('#q-cursor-row');
+      if (cursorRow) cursorRow.classList.toggle('hidden', !String(selected || '').startsWith('window:'));
       const list = tab === 'screens' ? screens : windows;
       grid.innerHTML = list.length ? '' : `<div class="empty-note" style="grid-column:1/-1">${t('Нет доступных источников')}</div>`;
       for (const s of list) {
@@ -832,6 +945,8 @@ const Voice = {
     seg.onclick = e => { const b = e.target.closest('[data-q]'); if (b) { quality = b.dataset.q; renderSeg(); } };
     const audioBox = body.querySelector('#q-audio');
     if (audioBox) { audioBox.checked = shareAudio; audioBox.onchange = () => { shareAudio = audioBox.checked; }; }
+    const cursorBox = body.querySelector('#q-cursor');
+    if (cursorBox) { cursorBox.checked = shareCursor; cursorBox.onchange = () => { shareCursor = cursorBox.checked; }; }
     renderGrid();
     renderSeg();
 
@@ -839,8 +954,8 @@ const Voice = {
     const go = () => {
       if (!selected) return;
       m && m.close();
-      App.saveSettings({ voice: { quality, shareAudio } });
-      this.startShare({ id: selected, quality, audio: shareAudio });
+      App.saveSettings({ voice: { quality, shareAudio, shareCursor } });
+      this.startShare({ id: selected, quality, audio: shareAudio, cursor: shareCursor });
     };
     m = modal({
       title: t('Демонстрация экрана'),
@@ -866,18 +981,51 @@ const Voice = {
     } catch { return false; }
   },
 
-  async startShare({ id, quality, audio }) {
+  /**
+   * Как убрать из звука трансляции голоса друзей (их LocalCord сам играет в колонки, и захват звука
+   * компьютера их подхватывает — зрители слышат себя с эхом):
+   *  'exclude' — Windows 11: система не отдаёт в захват звук самого LocalCord. Стерео, без обработки.
+   *  'cancel'  — Windows 10 и всё остальное: эхоподавитель Chromium вычитает то, что играет LocalCord.
+   *              Голоса пропадают, звук игры остаётся, но становится моно (проверено замером: −30…−40 дБ голоса).
+   */
+  shareAudioConstraints(mode) {
+    if (mode === 'exclude') return { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true };
+    if (mode === 'cancel') return { echoCancellation: true, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true };
+    if (mode === 'raw') return { echoCancellation: false, noiseSuppression: false, autoGainControl: false }; // только для проверок
+    return false;
+  },
+
+  /** Сработало ли исключение собственного звука (Chromium честно сообщает это в настройках трека) */
+  ownAudioExcluded(track) {
+    const st = (track && track.getSettings && track.getSettings()) || {};
+    return st.restrictOwnAudio === true || st.deviceId === 'loopbackWithoutChrome';
+  },
+
+  async startShare({ id, quality, audio, cursor = true }) {
     const q = QUALITY[quality] || QUALITY['1080p30'];
+    const capture = async mode => {
+      if (id) await App.api.screen.select({ id, audio: mode !== 'none' });
+      return navigator.mediaDevices.getDisplayMedia({
+        video: { width: { max: q.w }, height: { max: q.h }, frameRate: { ideal: q.fps, max: q.fps } },
+        audio: this.shareAudioConstraints(mode),
+      });
+    };
+    let mode = !audio ? 'none' : (window.LC_SHARE_AUDIO_MODE || (App.info.ownAudioExclusion ? 'exclude' : 'cancel'));
     let stream;
     try {
-      if (id) await App.api.screen.select({ id, audio });
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: { max: q.w }, height: { max: q.h }, frameRate: { ideal: q.fps, max: q.fps } },
-        // Звук компьютера передаём как есть: без «улучшений» для речи, от которых музыка и игры звучат глухо.
-        // restrictOwnAudio — не захватывать звук самого LocalCord: иначе голоса друзей уходят в трансляцию
-        // и зрители слышат всё дважды, с эхом «как из бочки».
-        audio: audio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } : false,
-      });
+      stream = await capture(mode);
+      if (mode === 'exclude') {
+        // Windows 11 должна была исключить звук LocalCord. Не вышло (или захват звука сразу оборвался) —
+        // перезапускаем с эхоподавителем, чтобы голоса друзей всё равно не попали в трансляцию.
+        const at0 = stream.getAudioTracks()[0];
+        if (at0) await new Promise(r => setTimeout(r, 400));
+        if (at0 && (!this.ownAudioExcluded(at0) || at0.readyState === 'ended')) {
+          dbg('own audio not excluded', JSON.stringify(at0.getSettings()));
+          stream.getTracks().forEach(tr => tr.stop());
+          mode = 'cancel';
+          stream = await capture(mode);
+        }
+      }
     } catch (e) {
       if (e && e.name !== 'NotAllowedError') toast(t('Не удалось начать трансляцию: {error}', { error: e.message || e }), { type: 'err' });
       return;
@@ -885,6 +1033,7 @@ const Voice = {
     if (!this.channel) { stream.getTracks().forEach(tr => tr.stop()); return; }
     const vt = stream.getVideoTracks()[0];
     const at = stream.getAudioTracks()[0];
+    if (!at) mode = 'none';
     let size = { w: q.w, h: q.h };
     if (vt) {
       vt.contentHint = q.keep === 'framerate' ? 'motion' : 'detail';
@@ -892,16 +1041,17 @@ const Voice = {
       const st = vt.getSettings ? vt.getSettings() : {};
       if (st.width && st.height) size = { w: st.width, h: st.height };
     }
-    if (at) at.contentHint = 'music';
+    if (at) at.contentHint = 'music'; // кодек Opus настраивается на музыку, а не на речь
     const hw = vt ? await this.hwH264(size.w, size.h, q) : false;
     if (!this.channel) { stream.getTracks().forEach(tr => tr.stop()); return; }
     this.screen = {
       stream, quality, audio: !!at, viewers: new Set(),
       codecs: hw ? h264First() : null,
-      ownAudioExcluded: !!(at && at.getSettings && at.getSettings().restrictOwnAudio),
+      audioMode: mode,
       stats: null,
     };
     Net.emit('stream-start', { streamId: stream.id, quality, audio: this.screen.audio });
+    if (cursor) this.startCursor(id);
     Sounds.play('stream');
     toast(t('Трансляция началась. Друзья увидят её, нажав «Смотреть».'), { type: 'ok' });
     if (q.heavy && !hw && size.h > 1200) {
@@ -955,11 +1105,50 @@ const Voice = {
       : t('Столько реально получает зритель');
   },
 
+  /**
+   * Курсор для зрителей при показе отдельного окна. Windows рисует курсор в захвате окна не всегда
+   * (в играх его часто нет), поэтому положение и вид курсора отправляются зрителям отдельно.
+   * Весь экран Windows захватывает вместе с курсором — там это не нужно.
+   */
+  startCursor(sourceId) {
+    const s = this.screen;
+    const isWindow = /^window:/.test(sourceId || '') || !!window.LC_FORCE_CURSOR;
+    if (!s || !isWindow || !App.api.cursor || !App.info.shareCursor) return;
+    const c = { pos: null, shape: null, dirty: false, sent: 0, timer: null, offs: [] };
+    s.cursor = c;
+    const send = extra => {
+      if (this.screen !== s || !s.viewers.size) return;
+      Net.emit('stream-cursor', { to: [...s.viewers], ...extra });
+    };
+    c.offs.push(App.api.cursor.onShape(sh => { c.shape = sh; send({ shape: sh }); }));
+    c.offs.push(App.api.cursor.onPos(p => { c.pos = p; c.dirty = true; }));
+    c.offs.push(App.api.cursor.onEnd(() => { c.pos = { v: false, x: 0, y: 0, w: 0 }; c.dirty = true; }));
+    // положение — не чаще 30 раз в секунду, и раз в секунду повтор (зритель понимает, что курсор ещё здесь)
+    c.timer = setInterval(() => {
+      const now = Date.now();
+      if (!c.pos || !(c.dirty || now - c.sent > 1000)) return;
+      c.dirty = false;
+      c.sent = now;
+      send({ pos: c.pos });
+    }, 33);
+    App.api.cursor.start(sourceId || 'test');
+  },
+
+  stopCursor(s) {
+    const c = s && s.cursor;
+    if (!c) return;
+    s.cursor = null;
+    clearInterval(c.timer);
+    c.offs.forEach(off => off());
+    App.api.cursor.stop();
+  },
+
   stopShare({ local = false } = {}) {
     if (!this.screen) return;
     const s = this.screen;
     this.screen = null;
     clearInterval(this.statsTimer);
+    this.stopCursor(s);
     for (const p of this.peers.values()) p.removeScreen(true);
     s.stream.getTracks().forEach(tr => tr.stop());
     if (!local) Net.emit('stream-stop');
@@ -1033,7 +1222,7 @@ const Voice = {
   updateTile(tile, m) {
     const p = App.profileOf(m.clientId, m);
     const isMe = m.socketId === App.me.id;
-    const key = `${p.username}|${p.avatar ? p.avatar.length : 0}|${p.color}|${p.frame || ''}|${p.font || ''}`;
+    const key = `${p.username}|${p.avatar ? p.avatar.length : 0}|${p.color}|${p.frame || ''}`;
     if (tile.dataset.k !== key) {
       tile.dataset.k = key;
       tile.querySelector('.t-av').innerHTML = avatarHtml(p, 80);
@@ -1041,7 +1230,7 @@ const Voice = {
     const muted = isMe ? (this.muted || this.deafened || !this.localStream) : m.muted;
     const deaf = isMe ? this.deafened : m.deafened;
     const localMute = !isMe && App.settings.voice.localMutes[m.clientId];
-    tile.querySelector('.t-name').innerHTML = `${muted ? `<span class="red">${icon('micOff', 14)}</span>` : ''}${deaf ? `<span class="red">${icon('headphonesOff', 14)}</span>` : ''}${localMute ? `<span class="red">${icon('speakerOff', 14)}</span>` : ''}<span><span class="${fontClass(p)}">${esc(p.username)}</span>${isMe ? ` ${t('(вы)')}` : ''}</span>`;
+    tile.querySelector('.t-name').innerHTML = `${muted ? `<span class="red">${icon('micOff', 14)}</span>` : ''}${deaf ? `<span class="red">${icon('headphonesOff', 14)}</span>` : ''}${localMute ? `<span class="red">${icon('speakerOff', 14)}</span>` : ''}<span><span ${nameAttr(p)}>${esc(p.username)}</span>${isMe ? ` ${t('(вы)')}` : ''}</span>`;
 
     const streaming = isMe ? !!this.screen : !!m.stream;
     const watching = Viewer.peerId === m.socketId;

@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sources: () => ipcRenderer.invoke('screen:sources'),
     select: (sel) => ipcRenderer.invoke('screen:select', sel),
   },
+  cursor: {
+    start: (sourceId) => ipcRenderer.invoke('cursor:start', sourceId),
+    stop: () => ipcRenderer.send('cursor:stop'),
+    onShape: listen('cursor:shape'),
+    onPos: listen('cursor:pos'),
+    onEnd: listen('cursor:end'),
+  },
   host: {
     start: () => ipcRenderer.invoke('host:start'),
     stop: () => ipcRenderer.invoke('host:stop'),

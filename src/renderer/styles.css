@@ -547,6 +547,8 @@ a:hover { text-decoration: underline; }
 #viewer .v-btn.close:hover { background: var(--red); }
 #viewer .v-vol { display: flex; align-items: center; gap: 6px; color: #fff; margin-right: auto; }
 #viewer .v-vol input { width: 100px; accent-color: #fff; }
+/* курсор ведущего поверх трансляции окна (см. Viewer.drawCursor) */
+#viewer .v-cursor { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; height: auto; max-width: none; filter: drop-shadow(0 0 1px rgba(0, 0, 0, .5)); will-change: transform; }
 #viewer .v-wait { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); }
 #viewer:fullscreen { border-radius: 0; }
 #viewer.mini .v-top { padding: 6px 8px; }
@@ -955,3 +957,34 @@ html.mobile body { user-select: none; -webkit-tap-highlight-color: transparent; 
   .frame-grid { grid-template-columns: repeat(3, 1fr); }
   .font-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* =============================================================
+   2.3: цвет и анимация имени
+   ============================================================= */
+.nc { color: var(--nc) !important; }
+/* Перелив, блеск, радуга: градиент «вырезается» по буквам. currentColor — цвет имени (свой или из темы) */
+.nx-shimmer, .nx-shine, .nx-rainbow {
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  background-repeat: repeat-x;
+}
+.nx-shimmer {
+  background-image: linear-gradient(90deg, currentColor, oklch(from currentColor clamp(.55, calc(l + .12), .95) calc(c + .08) calc(h + 65)), currentColor);
+  background-size: 200% 100%; animation: nx-pan 3.2s linear infinite;
+}
+.nx-shine {
+  background-image: linear-gradient(110deg, currentColor 0 40%, color-mix(in srgb, currentColor 15%, #fff) 50%, currentColor 60% 100%);
+  background-size: 300% 100%; animation: nx-shine 3s ease-in-out infinite;
+}
+.nx-rainbow {
+  background-image: linear-gradient(90deg, #ff6b6b, #ffa94d, #ffe066, #69db7c, #4dabf7, #9775fa, #f783ac, #ff6b6b);
+  background-size: 300% 100%; animation: nx-pan 4s linear infinite;
+}
+.nx-glow { animation: nx-glow 2.4s ease-in-out infinite; }
+@keyframes nx-pan { from { background-position: 0% 50%; } to { background-position: -200% 50%; } }
+@keyframes nx-shine { 0% { background-position: 100% 50%; } 55%, 100% { background-position: -50% 50%; } }
+@keyframes nx-glow {
+  0%, 100% { text-shadow: 0 0 2px color-mix(in srgb, currentColor 35%, transparent); }
+  50% { text-shadow: 0 0 6px currentColor, 0 0 14px color-mix(in srgb, currentColor 60%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .nx { animation: none !important; } }
+#s-nfx .font-opt b { overflow: visible; }

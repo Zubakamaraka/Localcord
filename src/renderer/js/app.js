@@ -227,7 +227,7 @@ const UI = {
           const isMe = m.socketId === App.me?.id;
           const muted = isMe ? (Voice.muted || Voice.deafened || !Voice.localStream) : m.muted;
           const deaf = isMe ? Voice.deafened : m.deafened;
-          html += `<div class="vm" data-vm="${esc(m.socketId)}">${avatarHtml(p, 24, { sid: m.socketId })}<span class="vm-name ${fontClass(p)}">${esc(p.username)}</span>
+          html += `<div class="vm" data-vm="${esc(m.socketId)}">${avatarHtml(p, 24, { sid: m.socketId })}<span ${nameAttr(p, 'vm-name')}>${esc(p.username)}</span>
             <span class="vm-icons">${m.stream ? `<span class="live-badge">${t('В эфире')}</span>` : ''}${muted ? `<span class="red">${icon('micOff', 16)}</span>` : ''}${deaf ? `<span class="red">${icon('headphonesOff', 16)}</span>` : ''}</span></div>`;
         }
         html += `</div>`;
@@ -325,7 +325,7 @@ const UI = {
     const muted = Voice.muted || Voice.deafened;
     $('#user-panel').innerHTML = `
       <div class="me" title="${t('Мой профиль')}">${avatarHtml(p, 32, { status: true, sid: App.me?.id || 'me' })}
-        <div class="me-text"><div class="me-name ${fontClass(p)}">${esc(p.username)}</div><div class="me-sub">${App.connected ? (Voice.channel ? t('В голосе') : t('В сети')) : t('Не в сети')}</div></div></div>
+        <div class="me-text"><div ${nameAttr(p, 'me-name')}>${esc(p.username)}</div><div class="me-sub">${App.connected ? (Voice.channel ? t('В голосе') : t('В сети')) : t('Не в сети')}</div></div></div>
       <button class="icon-btn ${muted ? 'off' : ''}" data-u="mic" title="${muted ? t('Включить микрофон') : t('Выключить микрофон')}">${icon(muted ? 'micOff' : 'mic', 20)}</button>
       <button class="icon-btn ${Voice.deafened ? 'off' : ''}" data-u="deaf" title="${Voice.deafened ? t('Включить звук') : t('Выключить звук')}">${icon(Voice.deafened ? 'headphonesOff' : 'headphones', 20)}</button>
       <button class="icon-btn" data-u="settings" title="${t('Настройки')}">${icon('settings', 20)}</button>`;
@@ -372,7 +372,7 @@ const UI = {
       const p = App.profileOf(u.clientId, u);
       const vc = u.voiceChannel ? App.channel(u.voiceChannel) : null;
       return `<div class="mem" data-cid="${esc(u.clientId)}" data-sock="${esc(u.id)}">${avatarHtml(p, 32, { status: true })}
-        <div class="mem-main"><div class="mem-name"><span class="${fontClass(p)}">${esc(p.username)}</span>${u.isHost ? `<span class="crown" title="${t('Хост сервера')}">${icon('crown', 14)}</span>` : ''}</div>
+        <div class="mem-main"><div class="mem-name"><span ${nameAttr(p)}>${esc(p.username)}</span>${u.isHost ? `<span class="crown" title="${t('Хост сервера')}">${icon('crown', 14)}</span>` : ''}</div>
         ${vc ? `<div class="mem-sub">${icon('volume', 12)} ${esc(vc.name)}</div>` : ''}</div></div>`;
     };
     const hosts = users.filter(u => u.isHost);

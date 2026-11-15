@@ -204,6 +204,19 @@ function httpReq(method, url, { headers = {}, body } = {}) {
   const st = once(b, 'stream-started');
   a.emit('stream-start', { streamId: 'abc', quality: '1080p30' });
   await st;
+  // курсор поверх трансляции окна: только зрителям из списка, с проверкой данных
+  const cur = once(b, 'stream-cursor');
+  a.emit('stream-cursor', { to: [jb.me.id, 'nobody'], pos: { v: 1, x: 1.7, y: 0.25, w: 1280 }, shape: { png: 'javascript:alert(1)', w: 9999, h: 24, hx: 3, hy: 50 } });
+  const cm = await cur;
+  assert.equal(cm.from, ja.me.id);
+  assert.deepEqual(cm.pos, { v: true, x: 1, y: 0.25, w: 1280 });
+  assert.deepEqual(cm.shape, { png: null, w: 256, h: 24, hx: 3, hy: 24 });
+  let cursorLeak = false;
+  a.once('stream-cursor', () => { cursorLeak = true; });
+  b.emit('stream-cursor', { to: [ja.me.id], pos: { v: true, x: 0.5, y: 0.5 } }); // b ничего не транслирует
+  await wait(200);
+  assert.equal(cursorLeak, false);
+  step('курсор трансляции уходит только зрителям, данные проверяются');
   const sp = once(b, 'stream-stopped');
   a.emit('stream-stop');
   await sp;

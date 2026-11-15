@@ -75,8 +75,11 @@ function cleanProfile(user, data) {
   const p = { username: user.username, color: user.color, avatar: cleanAvatar(data.avatar) };
   const frame = cleanStyleId(data.frame);
   const font = cleanStyleId(data.font);
+  const nameFx = cleanStyleId(data.nameFx);
   if (frame) p.frame = frame;
   if (font) p.font = font;
+  if (typeof data.nameColor === 'string' && /^#[0-9a-f]{6}$/i.test(data.nameColor)) p.nameColor = data.nameColor.toLowerCase();
+  if (nameFx) p.nameFx = nameFx;
   return p;
 }
 
@@ -651,6 +654,33 @@ async function createServer(opts = {}) {
       m.stream = null;
       broadcastChannels();
       socket.to(`voice:${user.voiceChannel}`).emit('stream-stopped', { socketId: socket.id });
+    });
+
+    // Курсор поверх трансляции окна: положение и вид курсора пересылаются только зрителям (to),
+    // которые сидят в том же голосовом канале. Положение — «летучее»: устаревшее не жалко потерять.
+    let cursorWin = 0, cursorCount = 0;
+    on('stream-cursor', (user, { to, pos, shape } = {}) => {
+      const m = voiceMember(socket.id);
+      if (!m || !m.stream || !Array.isArray(to)) return;
+      const now = Date.now();
+      if (now - cursorWin > 1000) { cursorWin = now; cursorCount = 0; }
+      if (++cursorCount > 90) return;
+      const out = { from: socket.id };
+      const frac = v => Math.min(1, Math.max(0, Number(v) || 0));
+      const int = (v, max) => Math.min(max, Math.max(0, Math.round(Number(v) || 0)));
+      if (pos && typeof pos === 'object') out.pos = { v: !!pos.v, x: frac(pos.x), y: frac(pos.y), w: int(pos.w, 16384) };
+      if (shape && typeof shape === 'object') {
+        const png = typeof shape.png === 'string' && shape.png.length < 400000 && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(shape.png) ? shape.png : null;
+        const w = int(shape.w, 256) || 32, h = int(shape.h, 256) || 32;
+        out.shape = { png, w, h, hx: int(shape.hx, w), hy: int(shape.hy, h) };
+      }
+      if (!out.pos && !out.shape) return;
+      for (const id of to.slice(0, 64)) {
+        const target = users.get(id);
+        if (!target || id === socket.id || target.voiceChannel !== user.voiceChannel) continue;
+        if (out.shape) io.to(id).emit('stream-cursor', out);
+        else io.to(id).volatile.emit('stream-cursor', out);
+      }
     });
 
     // Пересылка сигналов WebRTC — только между участниками одного голосового канала

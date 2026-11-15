@@ -47,10 +47,40 @@ const NAME_FONTS = [
   { id: 'lobster', name: N_('Вывеска') },
   { id: 'pixel', name: N_('Пиксели') },
 ];
+// Анимация имени. «Перелив» и «Блеск» строятся от цвета имени, «Радуга» — своя палитра
+const NAME_FX = [
+  { id: '', name: N_('Без эффекта') },
+  { id: 'shimmer', name: N_('Перелив') },
+  { id: 'shine', name: N_('Блеск') },
+  { id: 'rainbow', name: N_('Радуга') },
+  { id: 'glow', name: N_('Свечение') },
+];
+const NAME_COLORS = ['#f2f3f5', '#ff6b6b', '#ff9f43', '#ffd43b', '#51cf66', '#22b8cf', '#4dabf7', '#9775fa', '#f783ac', '#c0a080'];
 const frameId = p => (p && FRAMES.some(f => f.id && f.id === p.frame) ? p.frame : '');
 const fontClass = p => (p && NAME_FONTS.some(f => f.id && f.id === p.font) ? `nf nf-${p.font}` : '');
-/** Имя участника его шрифтом */
-const nameHtml = p => `<span class="${fontClass(p)}">${esc(p.username)}</span>`;
+const nameColorOf = p => (p && /^#[0-9a-f]{6}$/i.test(p.nameColor || '') ? p.nameColor : '');
+const nameFxOf = p => (p && NAME_FX.some(f => f.id && f.id === p.nameFx) ? p.nameFx : '');
+
+/** Классы и стиль имени: шрифт, цвет и анимация. Возвращает готовые атрибуты: <span ${nameAttr(p)}> */
+function nameAttr(p, cls = '') {
+  const c = nameColorOf(p);
+  const fx = nameFxOf(p);
+  const classes = [cls, fontClass(p), c ? 'nc' : '', fx ? `nx nx-${fx}` : ''].filter(Boolean).join(' ');
+  return `class="${classes}"${c ? ` style="--nc:${c}"` : ''}`;
+}
+
+/** То же для уже созданного элемента (базовые классы элемента сохраняются) */
+function applyName(el, p) {
+  el.classList.remove(...[...el.classList].filter(x => /^(nf|nf-.+|nc|nx|nx-.+)$/.test(x)));
+  for (const x of fontClass(p).split(' ').filter(Boolean)) el.classList.add(x);
+  const c = nameColorOf(p);
+  const fx = nameFxOf(p);
+  if (c) { el.classList.add('nc'); el.style.setProperty('--nc', c); } else el.style.removeProperty('--nc');
+  if (fx) el.classList.add('nx', `nx-${fx}`);
+}
+
+/** Имя участника его шрифтом, цветом и анимацией */
+const nameHtml = p => `<span ${nameAttr(p)}>${esc(p.username)}</span>`;
 
 /** Аватар: картинка или цветной кружок с инициалами, по желанию — с рамкой */
 function avatarHtml(p, size = 32, opts = {}) {

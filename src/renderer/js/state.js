@@ -14,10 +14,10 @@ const browserApi = (() => {
   };
   const defaults = {
     onboarded: false,
-    profile: { clientId: (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2), username: '', color: '#5865f2', avatar: null, frame: null, font: null },
+    profile: { clientId: (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2), username: '', color: '#5865f2', avatar: null, frame: null, font: null, nameColor: null, nameFx: null },
     mode: null, lastServer: null, servers: [],
     host: { name: 'Сервер LocalCord', port: 3000, password: '', autoStart: true, maxFileMB: 4096 },
-    voice: { inputId: 'default', outputId: 'default', noiseSuppression: true, echoCancellation: true, autoGainControl: true, quality: '1080p30', shareAudio: false, hwEncode: true, volumes: {}, localMutes: {} },
+    voice: { inputId: 'default', outputId: 'default', noiseSuppression: true, echoCancellation: true, autoGainControl: true, quality: '1080p30', shareAudio: false, shareCursor: true, hwEncode: true, volumes: {}, localMutes: {} },
     app: { closeToTray: true, startWithWindows: false, notifications: true, sounds: true, lang: null, checkUpdates: true, lastUpdateCheck: 0 },
     ui: { showMembers: true, collapsed: {}, theme: 'graphite', accent: null, scale: 100 },
   };
@@ -31,7 +31,7 @@ const browserApi = (() => {
       set: async (patch) => { const v = merge(merge(defaults, read()), patch); localStorage.setItem(KEY, JSON.stringify(v)); return v; },
     },
     app: {
-      info: async () => ({ version: '2.2.0', platform: 'browser', packaged: false }),
+      info: async () => ({ version: '2.3.0', platform: 'browser', packaged: false }),
       setLoginItem: async () => false, uninstall: unsupported,
       openExternal: url => window.open(url, '_blank', 'noopener'),
       showItem: noop, quit: noop,
@@ -100,7 +100,7 @@ const App = {
 
   profileOf(clientId, fallback = {}) {
     const p = this.profiles[clientId] || {};
-    return { username: p.username || fallback.username || '?', color: p.color || fallback.color, avatar: p.avatar || null, frame: p.frame || null, font: p.font || null };
+    return { username: p.username || fallback.username || '?', color: p.color || fallback.color, avatar: p.avatar || null, frame: p.frame || null, font: p.font || null, nameColor: p.nameColor || null, nameFx: p.nameFx || null };
   },
 
   fileUrl(id, download = false) {

@@ -88,6 +88,10 @@ const Settings = {
       <div class="frame-grid" id="s-frames"></div>
       <h4 style="margin-top:6px">${t('Шрифт имени')}</h4>
       <div class="font-grid" id="s-fonts"></div>
+      <h4 style="margin-top:6px">${t('Цвет имени')}</h4>
+      <div class="accent-row" id="s-ncolors"></div>
+      <h4 style="margin-top:6px">${t('Анимация имени')}</h4>
+      <div class="font-grid" id="s-nfx"></div>
       <h4 style="margin-top:6px">${t('Так вас видят друзья')}</h4>
       <div class="profile-preview" id="s-preview"></div>
     </div>`);
@@ -100,10 +104,17 @@ const Settings = {
       $('#s-colors', box).innerHTML = COLOR_CHOICES.map(c => `<button class="swatch ${c === s.color ? 'on' : ''}" data-c="${c}" style="background:${c}"></button>`).join('');
       $('#s-photo-rm', box).classList.toggle('hidden', !s.avatar);
       $('#s-frames', style).innerHTML = FRAMES.map(f => `<button class="frame-opt ${frameId(s) === f.id ? 'on' : ''}" data-f="${f.id}">${avatarHtml({ ...s, frame: f.id || null }, 48)}<span>${esc(t(f.name))}</span></button>`).join('');
-      $('#s-fonts', style).innerHTML = NAME_FONTS.map(f => `<button class="font-opt ${(s.font || '') === f.id ? 'on' : ''}" data-n="${f.id}"><b class="${f.id ? `nf nf-${f.id}` : ''}">${esc(s.username || 'LocalCord')}</b><span>${esc(t(f.name))}</span></button>`).join('');
+      $('#s-fonts', style).innerHTML = NAME_FONTS.map(f => `<button class="font-opt ${(s.font || '') === f.id ? 'on' : ''}" data-n="${f.id}"><b ${nameAttr({ ...s, font: f.id || null })}>${esc(s.username || 'LocalCord')}</b><span>${esc(t(f.name))}</span></button>`).join('');
+      const nc = nameColorOf(s);
+      const custom = nc && !NAME_COLORS.includes(nc);
+      $('#s-ncolors', style).innerHTML = `<button class="accent-dot auto ${nc ? '' : 'on'}" data-c="" title="${t('Как в теме')}"></button>` +
+        NAME_COLORS.map(c => `<button class="accent-dot ${nc === c ? 'on' : ''}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('') +
+        `<label class="accent-dot custom ${custom ? 'on' : ''}" title="${t('Свой цвет')}" ${custom ? `style="background:${nc};color:#fff"` : ''}>${icon('plus', 16)}<input type="color" value="${nc || '#9775fa'}"></label>`;
+      $('#s-ncolors input', style).oninput = debounce(ev => save({ nameColor: ev.target.value.toLowerCase() }), 150);
+      $('#s-nfx', style).innerHTML = NAME_FX.map(f => `<button class="font-opt ${nameFxOf(s) === f.id ? 'on' : ''}" data-x="${f.id}"><b ${nameAttr({ ...s, nameFx: f.id || null })}>${esc(s.username || 'LocalCord')}</b><span>${esc(t(f.name))}</span></button>`).join('');
       $('#s-preview', style).innerHTML = `<div class="msg head" style="pointer-events:none">
         <div class="m-av">${avatarHtml(s, 40)}</div>
-        <div class="m-head"><span class="m-name ${fontClass(s)}">${esc(s.username)}</span><span class="m-time">${esc(fmtStamp(Date.now()))}</span></div>
+        <div class="m-head"><span ${nameAttr(s, 'm-name')}>${esc(s.username)}</span><span class="m-time">${esc(fmtStamp(Date.now()))}</span></div>
         <div class="m-text">${t('Всем привет! Кто сегодня играет?')}</div></div>`;
     };
     $('#s-name', box).value = p.username;
@@ -113,6 +124,8 @@ const Settings = {
     $('#s-colors', box).onclick = e => { const s = e.target.closest('.swatch'); if (s) save({ color: s.dataset.c }); };
     $('#s-frames', style).onclick = e => { const b = e.target.closest('[data-f]'); if (b) save({ frame: b.dataset.f || null }); };
     $('#s-fonts', style).onclick = e => { const b = e.target.closest('[data-n]'); if (b) save({ font: b.dataset.n || null }); };
+    $('#s-ncolors', style).onclick = e => { const b = e.target.closest('[data-c]'); if (b) save({ nameColor: b.dataset.c || null }); };
+    $('#s-nfx', style).onclick = e => { const b = e.target.closest('[data-x]'); if (b) save({ nameFx: b.dataset.x || null }); };
     const pick = async () => {
       const f = await pickFile('image/*');
       if (!f) return;
@@ -129,7 +142,7 @@ const Settings = {
 
   onProfileChanged() {
     const p = App.settings.profile;
-    Net.emit('profile-update', { username: p.username, color: p.color, avatar: p.avatar, frame: p.frame, font: p.font });
+    Net.emit('profile-update', { username: p.username, color: p.color, avatar: p.avatar, frame: p.frame, font: p.font, nameColor: p.nameColor, nameFx: p.nameFx });
     UI.renderUserPanel();
   },
 

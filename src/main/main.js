@@ -9,6 +9,7 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
@@ -30,6 +31,7 @@ if (process.platform === 'win32') app.setAppUserModelId('com.localcord.app');
 const store = require('./store');
 const { t, lang } = require('./i18n');
 const updater = require('./updater');
+const cursor = require('./cursor');
 const { REPO } = updater; // репозиторий с выпусками: обновления и установщик для раздачи друзьям
 const { createServer } = require('../server/server');
 const { startResponder, discover, localAddresses } = require('../server/discovery');
@@ -107,7 +109,7 @@ function createWindow() {
       }
     }
   });
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { cursor.stop(); win = null; });
 
   // Внешние ссылки — в браузере, никаких новых окон внутри приложения
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -165,7 +167,9 @@ function setupSession() {
       const src = sources.find(s => s.id === sel.id);
       if (!src) return callback({});
       const res = { video: src };
-      if (sel.audio && process.platform === 'win32') res.audio = 'loopback';
+      // Звук компьютера. Исключение звука самого LocalCord (голосов друзей) Electron включает сам,
+      // если страница попросила restrictOwnAudio и Windows это умеет (Windows 11) — см. Voice.startShare.
+      if (sel.audio && SYSTEM_AUDIO) res.audio = 'loopback';
       callback(res);
     } catch {
       callback({});
@@ -193,6 +197,13 @@ function setupSession() {
 }
 
 let pendingShare = null;
+
+// Захват звука компьютера при трансляции: на Windows; LOCALCORD_TEST_LOOPBACK — для проверок на Linux (PulseAudio)
+const SYSTEM_AUDIO = process.platform === 'win32' || !!process.env.LOCALCORD_TEST_LOOPBACK;
+// Исключить из захвата собственный звук программы система умеет с Windows 11 (сборка 22000):
+// так же решает и Chromium (media::IsRestrictOwnAudioSupported). На Windows 10 голоса друзей
+// вычитает эхоподавитель — см. Voice.startShare.
+const OWN_AUDIO_EXCLUSION = process.platform === 'win32' && Number(os.release().split('.')[2] || 0) >= 22000;
 
 // ---------- встроенный сервер ----------
 let hostSrv = null;
@@ -461,6 +472,9 @@ function setupIpc() {
     packaged: app.isPackaged,
     userData: app.getPath('userData'),
     lang: lang(),
+    systemAudio: SYSTEM_AUDIO,
+    ownAudioExclusion: OWN_AUDIO_EXCLUSION,
+    shareCursor: cursor.supported(),
   }));
   ipcMain.handle('app:setLoginItem', (e, on) => {
     app.setLoginItemSettings({ openAtLogin: !!on, args: ['--hidden'] });
@@ -489,6 +503,11 @@ function setupIpc() {
       }));
   });
   ipcMain.handle('screen:select', (e, sel) => { pendingShare = sel && sel.id ? { id: sel.id, audio: !!sel.audio } : null; return true; });
+  // курсор поверх трансляции окна (см. cursor.js)
+  ipcMain.handle('cursor:start', (e, sourceId) => cursor.start(sourceId, (ch, data) => {
+    if (!e.sender.isDestroyed()) e.sender.send(ch, data);
+  }));
+  ipcMain.on('cursor:stop', () => cursor.stop());
 
   ipcMain.handle('host:start', () => startHost());
   ipcMain.handle('host:stop', () => stopHost());

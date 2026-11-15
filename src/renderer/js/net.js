@@ -57,7 +57,7 @@ const Net = {
         // сервер мог перезапуститься с новым секретом владельца — спрашиваем заново при каждом входе
         if (own) { try { own = this.ownInfo(address, await App.api.host.status()) || own; } catch { /* ignore */ } }
         socket.emit('join', {
-          username: p.username, color: p.color, avatar: p.avatar, frame: p.frame, font: p.font, clientId: p.clientId,
+          username: p.username, color: p.color, avatar: p.avatar, frame: p.frame, font: p.font, nameColor: p.nameColor, nameFx: p.nameFx, clientId: p.clientId,
           password: this.password, adminKey: own ? own.adminKey : undefined, clientVersion: App.info.version,
         }, async (res) => {
           if (!res || !res.ok) {
@@ -148,6 +148,7 @@ const Net = {
     socket.on('signal', d => Voice.onSignal(d));
     socket.on('stream-started', d => Voice.onStreamStarted(d));
     socket.on('stream-stopped', d => Voice.onStreamStopped(d));
+    socket.on('stream-cursor', d => Viewer.onCursor(d || {}));
   },
 
   emit(event, data, ack) {

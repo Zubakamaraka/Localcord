@@ -16,6 +16,8 @@ const DEFAULTS = () => ({
     avatar: null,
     frame: null,            // рамка аватара
     font: null,             // шрифт имени
+    nameColor: null,        // цвет имени (#rrggbb) или null — как в теме
+    nameFx: null,           // анимация имени
   },
   mode: null,               // 'host' | 'client'
   lastServer: null,         // 'ip:port'
@@ -36,6 +38,7 @@ const DEFAULTS = () => ({
     autoGainControl: true,
     quality: '1080p30',
     shareAudio: false,
+    shareCursor: true,
     hwEncode: true,          // трансляция через видеокарту (H.264), если она это умеет
     volumes: {},             // clientId -> 0..2
     localMutes: {},          // clientId -> true

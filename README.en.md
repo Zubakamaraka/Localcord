@@ -81,9 +81,11 @@ The language is switched there as well: English, Russian or “same as system”
 ### Profile customization
 
 Settings → “My profile”: nine avatar frames (from the calm “Accent” to the animated “Galaxy” and “Rainbow”),
-eight name fonts and a photo or a GIF. An animated GIF stays animated — LocalCord crops it to a square and
-shrinks it to avatar size by itself. Frames and fonts are visible to everyone running version 2.2 or newer;
-for the others your profile simply looks plain.
+eight name fonts, a name color (from the palette or any of your own), a name animation — “Shimmer”, “Shine”,
+“Rainbow” and “Glow” — and a photo or a GIF. An animated GIF stays animated — LocalCord crops it to a square and
+shrinks it to avatar size by itself. Frames and fonts are visible to everyone running version 2.2 or newer,
+name color and animation — 2.3 or newer; for the others your profile simply looks plain.
+If animations are turned off in Windows, names do not animate.
 
 ### On a phone
 
@@ -176,9 +178,15 @@ and the earpiece, themes. Sharing the phone's own screen is not available yet. T
   a 4K stream that cannot be compressed in time.
 - While you are streaming, your tile shows what viewers actually get: resolution, frames per second,
   codec and what limits the quality — the computer or the network.
-- “Share computer audio” sends game or video sound in stereo, without “speech” processing.
-  LocalCord asks Windows not to add its own sound (your friends' voices) to the stream. If viewers still
-  hear themselves with an echo, your Windows cannot do that — turn the option off.
+- “Share computer audio” sends game or video sound. Your friends' voices that LocalCord plays in your
+  headphones do not get into the stream — otherwise viewers would hear themselves with an echo:
+  - **Windows 11** itself leaves LocalCord's sound out of the capture — the stream sound is stereo, unprocessed;
+  - **Windows 10** cannot do that, so LocalCord subtracts your friends' voices from the stream sound
+    (the way echo cancellation removes speakers from a microphone). The game sound stays but becomes mono.
+- **Cursor when sharing a window.** When you share a single window (not the whole screen), Windows often
+  leaves the cursor out — especially in games. LocalCord sends viewers where the cursor is and what it looks
+  like, and draws it over the video with the same delay as the picture. If viewers see two cursors
+  (Windows did draw its own after all), untick “Show cursor to viewers” in the share dialog.
 - The stream is sent only to those who clicked “Watch” — this saves the streamer's network and CPU.
 
 For the viewer:
@@ -271,6 +279,7 @@ Limitations worth knowing:
 src/
   main/            Electron main process
     main.js          window, tray, firewall, embedded server, uninstall
+    cursor.js        cursor for window sharing (cursor-win.js — Windows functions via koffi)
     updater.js       updates from GitHub: release list, download with checksum verification
     i18n.js          language of tray and notification texts (lang-en.js holds the translation)
     preload.js       the safe bridge between the interface and the system
@@ -339,6 +348,7 @@ Building the APK locally: Android Studio → `npm run android:sync` → `npm run
 - [x] Frames, fonts and GIF avatars
 - [x] English language
 - [x] Updates from GitHub and version rollback
+- [x] Name color and animation, cursor in window sharing, stream audio without friends' voices
 - [ ] Screen sharing from a phone
 - [ ] Message notifications on Android
 - [ ] Encryption of chat and files on a plain local network (TLS)

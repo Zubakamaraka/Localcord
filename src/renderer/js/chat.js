@@ -96,7 +96,7 @@ const Chat = {
       ${m.attachments && m.attachments.length ? `<div class="atts">${m.attachments.map(a => this.attachmentHtml(a)).join('')}</div>` : ''}
       ${canDelete ? `<div class="m-actions"><button data-del title="${t('Удалить сообщение')}">${icon('trash', 18)}</button></div>` : ''}
     </div>`);
-    if (head) { const n = el.querySelector('.m-name'); n.textContent = p.username; if (fontClass(p)) n.className += ' ' + fontClass(p); }
+    if (head) { const n = el.querySelector('.m-name'); n.textContent = p.username; applyName(n, p); }
     parent.appendChild(el);
     return el;
   },
@@ -260,7 +260,7 @@ const Chat = {
   async sendWithFiles(channel, text, files) {
     const el = h(`<div class="msg head pending">
       <div class="m-av">${avatarHtml(App.settings.profile, 40)}</div>
-      <div class="m-head"><span class="m-name ${fontClass(App.settings.profile)}"></span><span class="m-time">${t('отправка…')}</span></div>
+      <div class="m-head"><span ${nameAttr(App.settings.profile, 'm-name')}></span><span class="m-time">${t('отправка…')}</span></div>
       ${text ? `<div class="m-text">${esc(text)}</div>` : ''}
       <div class="atts"></div>
     </div>`);
